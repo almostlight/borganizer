@@ -3,7 +3,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "book-organizer"
+name = "borganizer"
 version = "0.1.0"
 description = "Safe, metadata-aware organizer for Audiobookshelf audiobook and ebook libraries"
 requires-python = ">=3.11"
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-book-organizer = "book_organizer.cli:main"
+borganizer = "borganizer.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["book_organizer*"]
+include = ["borganizer*"]

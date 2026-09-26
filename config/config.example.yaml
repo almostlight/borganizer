@@ -1,6 +1,6 @@
 incoming_dir: /mnt/media/incoming
 library_dir: /mnt/media/books
-database: /var/lib/book-organizer/library.db
+database: /var/lib/borganizer/library.db
 
 scan:
   extensions:

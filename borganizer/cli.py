@@ -85,7 +85,7 @@ def cmd_undo(config, db) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(prog="book-organizer")
+    parser = argparse.ArgumentParser(prog="borganizer")
     parser.add_argument("--config", help="Path to config YAML")
     sub = parser.add_subparsers(dest="command", required=True)
 

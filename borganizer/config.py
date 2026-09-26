@@ -25,7 +25,7 @@ class Config:
 
 
 def load_config(path: str | Path | None = None) -> Config:
-    config_path = Path(path or os.environ.get("BOOK_ORGANIZER_CONFIG", "/opt/book-organizer/config.yaml"))
+    config_path = Path(path or os.environ.get("BORGANIZER_CONFIG", "/opt/borganizer/config.yaml"))
     with config_path.open("r", encoding="utf-8") as f:
         data: dict[str, Any] = yaml.safe_load(f) or {}
 
