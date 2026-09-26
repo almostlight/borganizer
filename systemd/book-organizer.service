@@ -1,0 +1,12 @@
+[Unit]
+Description=Audiobookshelf Book Organizer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=bookorganizer
+Group=bookorganizer
+WorkingDirectory=/opt/book-organizer
+Environment=BOOK_ORGANIZER_CONFIG=/opt/book-organizer/config.yaml
+ExecStart=/opt/book-organizer/venv/bin/book-organizer scan

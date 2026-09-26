@@ -1,0 +1,11 @@
+[Unit]
+Description=Scan incoming Audiobookshelf books
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=10min
+Persistent=true
+Unit=book-organizer.service
+
+[Install]
+WantedBy=timers.target

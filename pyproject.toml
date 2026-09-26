@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "book-organizer"
+version = "0.1.0"
+description = "Safe, metadata-aware organizer for Audiobookshelf audiobook and ebook libraries"
+requires-python = ">=3.11"
+dependencies = [
+    "mutagen>=1.47,<2",
+    "ebooklib>=0.18,<1",
+    "rapidfuzz>=3.0,<4",
+    "PyYAML>=6.0,<7",
+]
+
+[project.scripts]
+book-organizer = "book_organizer.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["book_organizer*"]

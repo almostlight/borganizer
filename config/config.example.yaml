@@ -1,0 +1,21 @@
+incoming_dir: /mnt/media/incoming
+library_dir: /mnt/media/books
+database: /var/lib/book-organizer/library.db
+
+scan:
+  extensions:
+    audiobook: [".mp3", ".m4a", ".m4b", ".flac", ".ogg", ".opus"]
+    ebook: [".epub", ".pdf", ".azw3", ".mobi"]
+  ignore_hidden: true
+  min_stable_age_seconds: 30
+
+naming:
+  series_separator: " / "
+  series_number_width: 2
+  invalid_replacement: "_"
+
+safety:
+  overwrite_existing: false
+  allow_cross_device_move: false
+  require_confirmation_for_low_confidence: true
+  auto_apply_threshold: 0.95
