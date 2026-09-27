@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+MODEL="${BORGANIZER_OLLAMA_MODEL:-qwen3:8b}"
+CONFIG_PATH="${BORGANIZER_CONFIG:-/opt/borganizer/config.yaml}"
+SERVICE_USER="${BORGANIZER_USER:-borganizer}"
+
+usage() {
+    cat <<'EOF'
+Usage: sudo ./scripts/install-ollama.sh [options]
+
+Install Ollama, download qwen3:8b, and enable it in borganizer's YAML config.
+
+Options:
+  --config PATH        Borganizer config (default: /opt/borganizer/config.yaml)
+  --service-user USER  Borganizer service account (default: borganizer)
+  --model NAME         Ollama model (default: qwen3:8b)
+  -h, --help           Show this help
+EOF
+}
+
+die() {
+    printf 'ERROR: %s\n' "$*" >&2
+    exit 1
+}
+
+while (($#)); do
+    case "$1" in
+        --config) (($# >= 2)) || die "--config requires a path"; CONFIG_PATH=$2; shift 2 ;;
+        --service-user) (($# >= 2)) || die "--service-user requires a user"; SERVICE_USER=$2; shift 2 ;;
+        --model) (($# >= 2)) || die "--model requires a model"; MODEL=$2; shift 2 ;;
+        -h|--help) usage; exit 0 ;;
+        *) die "unknown option: $1" ;;
+    esac
+done
+
+[[ $EUID -eq 0 ]] || die "run this script as root, for example: sudo $0"
+command -v curl >/dev/null || die "curl is required to install Ollama"
+command -v systemctl >/dev/null || die "systemd/systemctl is required"
+
+if ! command -v ollama >/dev/null; then
+    curl -fsSL https://ollama.com/install.sh | sh
+fi
+
+systemctl enable --now ollama 2>/dev/null || true
+if ! curl --fail --silent --max-time 5 http://127.0.0.1:11434/api/tags >/dev/null; then
+    printf 'Ollama is installed but its service is not reachable. Start it with: systemctl start ollama\n' >&2
+    exit 1
+fi
+
+ollama pull "$MODEL"
+
+CONFIG_DIR=$(dirname -- "$CONFIG_PATH")
+CONFIG_PYTHON="$CONFIG_DIR/venv/bin/python"
+[[ -x "$CONFIG_PYTHON" ]] || CONFIG_PYTHON=python3
+OLLAMA_CONFIG="$CONFIG_PATH" OLLAMA_MODEL="$MODEL" "$CONFIG_PYTHON" - <<'PY'
+from pathlib import Path
+import os
+import yaml
+
+path = Path(os.environ["OLLAMA_CONFIG"])
+with path.open("r", encoding="utf-8") as stream:
+    data = yaml.safe_load(stream) or {}
+ai = data.setdefault("ai", {})
+ai.update({
+    "enabled": True,
+    "provider": "ollama",
+    "endpoint": "http://127.0.0.1:11434/api/chat",
+    "model": os.environ["OLLAMA_MODEL"],
+    "threads": 4,
+})
+with path.open("w", encoding="utf-8") as stream:
+    yaml.safe_dump(data, stream, sort_keys=False)
+PY
+chown "$SERVICE_USER:$SERVICE_USER" "$CONFIG_PATH"
+chmod 0640 "$CONFIG_PATH"
+systemctl restart borganizer.timer 2>/dev/null || true
+printf 'Ollama is ready with %s; borganizer AI is enabled with 4 threads.\n' "$MODEL"

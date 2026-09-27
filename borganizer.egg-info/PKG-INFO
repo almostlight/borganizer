@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: borganizer
+Version: 0.1.0
+Summary: Safe, metadata-aware organizer for Audiobookshelf audiobook and ebook libraries
+Requires-Python: >=3.11
+Requires-Dist: mutagen<2,>=1.47
+Requires-Dist: ebooklib<1,>=0.18
+Requires-Dist: rapidfuzz<4,>=3.0
+Requires-Dist: PyYAML<7,>=6.0
+Provides-Extra: test
+Requires-Dist: pytest<9,>=8; extra == "test"

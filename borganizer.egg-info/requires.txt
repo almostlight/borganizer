@@ -1,0 +1,7 @@
+mutagen<2,>=1.47
+ebooklib<1,>=0.18
+rapidfuzz<4,>=3.0
+PyYAML<7,>=6.0
+
+[test]
+pytest<9,>=8

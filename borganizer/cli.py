@@ -10,6 +10,7 @@ from .organizer import apply_proposals, propose, undo_latest
 from .providers import build_metadata_provider
 from .ai import build_ai_resolver
 from .archive import inspect_zip
+from .web import serve
 
 
 def cmd_scan(config, db, provider, ai_resolver) -> int:
@@ -168,6 +169,9 @@ def main() -> int:
     sub.add_parser("approve-all-high-confidence")
     inspect_parser = sub.add_parser("inspect", help="List ZIP contents without extracting")
     inspect_parser.add_argument("path")
+    web_parser = sub.add_parser("web", help="Start the local review web UI")
+    web_parser.add_argument("--host", default="127.0.0.1")
+    web_parser.add_argument("--port", type=int, default=8765)
 
     args = parser.parse_args()
     config = load_config(args.config)
@@ -197,6 +201,9 @@ def main() -> int:
         return cmd_approve_all_high_confidence(config, db)
     if args.command == "inspect":
         return cmd_inspect(args.path)
+    if args.command == "web":
+        serve(config, args.host, args.port)
+        return 0
     return 1
 
 

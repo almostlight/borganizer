@@ -30,7 +30,9 @@ class Config:
     ai_provider: str = "openai"
     ai_endpoint: str = "https://api.openai.com/v1/chat/completions"
     ai_model: str = "gpt-4o-mini"
+    ai_threads: int = 4
     ai_api_key_env: str = "OPENAI_API_KEY"
+    config_path: Path | None = None
 
 
 def load_config(path: str | Path | None = None) -> Config:
@@ -65,5 +67,65 @@ def load_config(path: str | Path | None = None) -> Config:
         ai_provider=str(ai.get("provider", "openai")),
         ai_endpoint=str(ai.get("endpoint", "https://api.openai.com/v1/chat/completions")),
         ai_model=str(ai.get("model", "gpt-4o-mini")),
+        ai_threads=int(ai.get("threads", 4)),
         ai_api_key_env=str(ai.get("api_key_env", "OPENAI_API_KEY")),
+        config_path=config_path,
+    )
+
+
+def save_runtime_settings(
+    config: Config,
+    *,
+    incoming_dir: str,
+    library_dir: str,
+    operation_mode: str,
+    ai_enabled: bool,
+    ai_provider: str,
+    ai_endpoint: str,
+    ai_model: str,
+    ai_threads: int,
+) -> Config:
+    if operation_mode not in {"safe", "automatic"}:
+        raise ValueError("operation mode must be safe or automatic")
+    if ai_provider not in {"ollama", "openai"}:
+        raise ValueError("AI provider must be ollama or openai")
+    if not incoming_dir.strip() or not library_dir.strip() or not ai_model.strip():
+        raise ValueError("directories and AI model are required")
+    if not 1 <= ai_threads <= 128:
+        raise ValueError("AI threads must be between 1 and 128")
+
+    values = {
+        "incoming_dir": str(Path(incoming_dir).expanduser()),
+        "library_dir": str(Path(library_dir).expanduser()),
+        "operation_mode": operation_mode,
+        "ai": {
+            "enabled": ai_enabled,
+            "provider": ai_provider,
+            "endpoint": ai_endpoint.strip(),
+            "model": ai_model.strip(),
+            "threads": ai_threads,
+            "api_key_env": config.ai_api_key_env,
+        },
+    }
+    if config.config_path:
+        with config.config_path.open("r", encoding="utf-8") as stream:
+            data: dict[str, Any] = yaml.safe_load(stream) or {}
+        data.update({key: value for key, value in values.items() if key != "ai"})
+        data["ai"] = {**data.get("ai", {}), **values["ai"]}
+        temporary = config.config_path.with_suffix(config.config_path.suffix + ".tmp")
+        with temporary.open("w", encoding="utf-8") as stream:
+            yaml.safe_dump(data, stream, sort_keys=False)
+        temporary.replace(config.config_path)
+        return load_config(config.config_path)
+    from dataclasses import replace
+    return replace(
+        config,
+        incoming_dir=Path(values["incoming_dir"]).resolve(),
+        library_dir=Path(values["library_dir"]).resolve(),
+        operation_mode=operation_mode,
+        ai_enabled=ai_enabled,
+        ai_provider=ai_provider,
+        ai_endpoint=ai_endpoint.strip(),
+        ai_model=ai_model.strip(),
+        ai_threads=ai_threads,
     )

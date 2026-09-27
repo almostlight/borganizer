@@ -80,13 +80,47 @@ class OpenAIResolver(AIResolver):
         request = urllib.request.Request(self.endpoint, data=body, method="POST", headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"})
         with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
             payload = json.load(response)
-        content = payload["choices"][0]["message"]["content"]
+            content = payload["choices"][0]["message"]["content"]
         return _resolution(json.loads(content))
+
+
+class OllamaResolver(AIResolver):
+    name = "ollama"
+
+    def __init__(self, endpoint: str, model: str, threads: int = 4, timeout_seconds: float = 120.0):
+        self.endpoint = endpoint
+        self.model = model
+        self.threads = threads
+        self.timeout_seconds = timeout_seconds
+
+    def resolve(self, *, filename: str, embedded: BookMetadata, candidate_books: list[str]) -> AIResolution | None:
+        prompt = {
+            "filename": filename,
+            "embedded_title": embedded.title,
+            "embedded_artist": embedded.author,
+            "candidate_books": candidate_books,
+        }
+        body = json.dumps({
+            "model": self.model,
+            "stream": False,
+            "format": "json",
+            "messages": [
+                {"role": "system", "content": "Identify the book only. Return JSON with book, author, series, series_number, confidence. Never return filesystem commands."},
+                {"role": "user", "content": json.dumps(prompt)},
+            ],
+            "options": {"temperature": 0, "num_thread": self.threads},
+        }).encode()
+        request = urllib.request.Request(self.endpoint, data=body, method="POST", headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+            payload = json.load(response)
+        return _resolution(json.loads(payload["message"]["content"]))
 
 
 def build_ai_resolver(config) -> AIResolver | None:
     if not config.ai_enabled:
         return None
+    if config.ai_provider == "ollama":
+        return OllamaResolver(config.ai_endpoint, config.ai_model, config.ai_threads)
     if config.ai_provider != "openai":
         raise ValueError(f"Unknown AI provider: {config.ai_provider}")
     api_key = os.environ.get(config.ai_api_key_env)

@@ -22,9 +22,41 @@ Book matching is ordered from strongest to weakest evidence: ISBN or exact ident
 
 Series positions are stored separately from their directory rendering. Numeric positions such as `0.5`, `2.5`, and `3.1` use `series_number`; named positions such as `Companion`, `Short Stories`, `Collection`, and `Box Set` use `series_position_label`. Numeric positions render as `0.5 - Title`, while named positions render as `Companion - Title`.
 
-When enabled, the AI resolver receives only filename, embedded metadata, and candidate book names. It returns validated book metadata; Python converts that metadata into a destination path and the filesystem layer performs the move. The AI cannot issue filesystem commands. Multi-file books retain unique source track names inside the shared book directory.
+When enabled, the AI resolver receives only filename, embedded metadata, and candidate book names. It returns validated book metadata; Python converts that metadata into a destination path and the filesystem layer performs the move. The AI cannot issue filesystem commands. Multi-file books retain unique source track names inside the shared book directory. Ollama is supported as a local provider; OpenAI remains available when a hosted model is preferred.
 
 ## Install on Debian
+
+The automated installer supports Debian/Ubuntu and Fedora. Run it from a
+checked-out copy of this repository as root. It creates the `borganizer`
+service account, installs the project in `/opt/borganizer/venv`, creates the
+configured directories, and enables the ten-minute systemd timer:
+
+```bash
+sudo ./scripts/install.sh
+```
+
+The installer keeps `operation_mode: safe` and asks whether Ollama should be
+installed. To install the local `qwen3:8b` profile without prompting:
+
+```bash
+sudo ./scripts/install.sh --with-ollama --yes
+```
+
+To install only the organizer and skip the Ollama offer:
+
+```bash
+sudo ./scripts/install.sh --without-ollama
+```
+
+Set media locations during installation with `--incoming` and `--library`.
+The standalone Ollama step can be rerun later:
+
+```bash
+sudo ./scripts/install-ollama.sh
+```
+
+It installs Ollama using the official installer, pulls `qwen3:8b`, and enables
+the Ollama provider with four threads in `/opt/borganizer/config.yaml`.
 
 ```bash
 sudo apt update
@@ -69,6 +101,17 @@ sudo -u borganizer BORGANIZER_CONFIG=/opt/borganizer/config.yaml \
 ```
 
 Nothing has moved yet.
+
+## Local web UI
+
+Start the local review dashboard with:
+
+```bash
+sudo -u borganizer BORGANIZER_CONFIG=/opt/borganizer/config.yaml \
+  /opt/borganizer/venv/bin/borganizer web
+```
+
+Open http://127.0.0.1:8765 in a browser. The interface is bound to localhost by default and supports reviewing, approving, rejecting, and undoing audited batches. Use `--port` to select another local port.
 
 Review output labels each proposal `MOVE`, `REVIEW`, or `IGNORE`. Approve selected proposals or all proposals at or above the configured confidence threshold:
 
@@ -129,11 +172,24 @@ metadata:
 
 ai:
   enabled: false
-  provider: openai
-  api_key_env: OPENAI_API_KEY
+  provider: ollama
+  endpoint: http://127.0.0.1:11434/api/chat
+  model: qwen3:8b
+  threads: 4
 ```
 
 Keep `operation_mode: safe` until review output is understood. In `automatic` mode, only pending proposals at or above `auto_apply_threshold` are moved; everything else remains available to `review`.
+
+### Ollama
+
+Install and start Ollama, then download a model:
+
+```bash
+ollama serve
+ollama pull qwen3:8b
+```
+
+Enable it in the configuration above. Borganizer sends requests to Ollama on `127.0.0.1:11434` using four CPU threads and does not require an API key. The Ollama `qwen3:8b` package uses the Q4_K_M quantization requested here.
 
 ### OpenAI key
 
