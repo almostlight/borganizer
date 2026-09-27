@@ -17,9 +17,12 @@ from .db import Database
 from .metadata import extract_metadata
 from .matching import MatchResult, classify_match, normalize_text
 from .models import BookMetadata, FileCandidate, Proposal
-from .providers import MetadataProvider
+from .providers import CachedMetadataProvider, MetadataProvider, OpenLibraryProvider
 from .ai import AIResolver
 from .util import clean_component, format_series_position, sha256_file
+
+
+AI_CONFIDENCE_THRESHOLD = 0.80
 
 
 def classify_extension(path: Path, config: Config) -> str | None:
@@ -234,20 +237,35 @@ def _lookup_metadata(candidate: FileCandidate, provider: MetadataProvider) -> No
 def _library_book_candidates(config: Config) -> list[str]:
     if not config.library_dir.exists():
         return []
-    return sorted({path.parent.name for path in config.library_dir.rglob("*") if path.is_file() and classify_extension(path, config)})
+    return sorted({path.parent.name for path in config.library_dir.rglob("*") if path.is_file() and classify_extension(path, config)})[:24]
 
 
-def _lookup_ai(candidate: FileCandidate, resolver: AIResolver, config: Config) -> None:
+def _lookup_ai(candidate: FileCandidate, resolver: AIResolver, config: Config, provider: MetadataProvider | None = None) -> None:
     result = resolver.resolve(filename=candidate.path.name, embedded=candidate.metadata, candidate_books=_library_book_candidates(config))
     if not result:
         return
+    if not re.search(r"[A-Za-z]{2,}", result.book):
+        raise ValueError("AI returned an implausible book title")
+    if result.series and not re.search(r"[A-Za-z]{2,}", result.series):
+        raise ValueError("AI returned an implausible series")
+    if provider:
+        matches = provider.search(result.metadata())
+        if not any(
+            normalize_text(match.metadata.title) == normalize_text(result.book)
+            and normalize_text(match.metadata.author) == normalize_text(result.author)
+            for match in matches
+        ):
+            raise ValueError("AI book and author were not found by metadata provider")
     candidate.metadata = _merge_metadata(candidate.metadata, result.metadata())
     candidate.confidence = max(candidate.confidence, result.confidence)
     candidate.notes.append(f"AI resolver: {resolver.name}")
 
 
-def propose(config: Config, db: Database, provider: MetadataProvider | None = None, ai_resolver: AIResolver | None = None) -> list[Proposal]:
+def propose(config: Config, db: Database, provider: MetadataProvider | None = None, ai_resolver: AIResolver | None = None, cancel_event=None) -> list[Proposal]:
     proposals: list[Proposal] = []
+    ai_validation_provider = provider
+    if ai_validation_provider is None and config.ai_enabled and ai_resolver and ai_resolver.name in {"ollama", "openai"}:
+        ai_validation_provider = CachedMetadataProvider(OpenLibraryProvider(timeout_seconds=5), db, config.metadata_cache_ttl_seconds)
     candidates = [candidate_from_file(path, config) for path in scan_files(config)]
     candidates = [candidate for candidate in candidates if candidate]
     initial_destinations: dict[Path, int] = {}
@@ -260,6 +278,9 @@ def propose(config: Config, db: Database, provider: MetadataProvider | None = No
         initial_destinations[build_destination(candidate, config)] = initial_destinations.get(build_destination(candidate, config), 0) + 1
 
     for candidate in candidates:
+        if cancel_event is not None and cancel_event.is_set():
+            break
+        item_started = time.perf_counter()
         path = candidate.path
         if not candidate:
             continue
@@ -270,12 +291,16 @@ def propose(config: Config, db: Database, provider: MetadataProvider | None = No
                 existing_match = find_existing_match(candidate, config)
             except Exception as exc:
                 candidate.notes.append(f"metadata lookup unavailable: {exc.__class__.__name__}")
-        if not existing_match and ai_resolver:
+        # AI is a fallback for incomplete or low-confidence metadata, not a second pass over every tagged file.
+        needs_ai = candidate.confidence < AI_CONFIDENCE_THRESHOLD or not candidate.metadata.title or not candidate.metadata.author
+        if not existing_match and ai_resolver and needs_ai:
             try:
-                _lookup_ai(candidate, ai_resolver, config)
+                _lookup_ai(candidate, ai_resolver, config, ai_validation_provider)
             except Exception as exc:
-                candidate.notes.append(f"AI resolver unavailable: {exc.__class__.__name__}")
+                candidate.notes.append(f"AI resolver unavailable: {exc}")
             existing_match = find_existing_match(candidate, config)
+        if config.ai_enabled and ai_resolver and needs_ai and candidate.confidence < AI_CONFIDENCE_THRESHOLD:
+            continue
         matched_path = existing_match[0] if existing_match else None
         match = existing_match[1] if existing_match else None
         book_root = matched_path.parent if matched_path and match else build_book_root(candidate, config)
@@ -294,6 +319,7 @@ def propose(config: Config, db: Database, provider: MetadataProvider | None = No
             continue
 
         reason_parts = list(candidate.notes)
+        reason_parts.append(f"processing time: {time.perf_counter() - item_started:.2f}s")
         if match:
             reason_parts.append(f"{match.method}: {match.kind}")
         if match and match.kind == "duplicate file":

@@ -171,3 +171,13 @@ class Database:
             (batch_id,),
         )
         self.conn.commit()
+
+    def reset(self) -> None:
+        """Remove organizer history and cached metadata without touching media files."""
+        with self.conn:
+            self.conn.execute("DELETE FROM operations")
+            self.conn.execute("DELETE FROM proposals")
+            self.conn.execute("DELETE FROM metadata_cache")
+            self.conn.execute(
+                "DELETE FROM sqlite_sequence WHERE name IN ('operations', 'proposals')"
+            )

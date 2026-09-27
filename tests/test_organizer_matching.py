@@ -25,7 +25,7 @@ class FakeAIResolver(AIResolver):
         return AIResolution("The Final Empire", "Brandon Sanderson", "Mistborn", 1, 0.97)
 
 
-def config(incoming: Path, library: Path, database: Path) -> Config:
+def config(incoming: Path, library: Path, database: Path, *, ai_enabled: bool = False) -> Config:
     return Config(
         incoming_dir=incoming,
         library_dir=library,
@@ -39,6 +39,7 @@ def config(incoming: Path, library: Path, database: Path) -> Config:
         overwrite_existing=False,
         allow_cross_device_move=False,
         auto_apply_threshold=0.95,
+        ai_enabled=ai_enabled,
     )
 
 
@@ -105,6 +106,7 @@ def test_provider_enriches_filename_only_candidate(tmp_path):
 
     assert proposals[0].destination_path == library / "Tolkien" / "The Hobbit" / "The Hobbit.mp3"
     assert "metadata lookup: fake" in proposals[0].reason
+    assert "processing time:" in proposals[0].reason
 
 
 def test_ai_resolver_enriches_candidate_without_filesystem_access(tmp_path):
@@ -114,10 +116,110 @@ def test_ai_resolver_enriches_candidate_without_filesystem_access(tmp_path):
     (incoming / "Sanderson_Mistborn_FinalEmpire_unabridged.m4b").write_bytes(b"new")
 
     database = Database(tmp_path / "library.db")
-    proposals = propose(config(incoming, library, tmp_path / "library.db"), database, ai_resolver=FakeAIResolver())
+    proposals = propose(config(incoming, library, tmp_path / "library.db", ai_enabled=True), database, ai_resolver=FakeAIResolver())
 
     assert proposals[0].destination_path == library / "Brandon Sanderson" / "Mistborn" / "01 - The Final Empire" / "The Final Empire.m4b"
     assert "AI resolver: fake-ai" in proposals[0].reason
+
+
+def test_ai_resolver_skips_complete_embedded_metadata(tmp_path, monkeypatch):
+    incoming = tmp_path / "incoming"
+    library = tmp_path / "library"
+    incoming.mkdir()
+    source = incoming / "Tagged.m4b"
+    source.write_bytes(b"new")
+
+    def tagged_metadata(path, media_type):
+        return BookMetadata(title="Tagged Book", author="Tagged Author", series="Tagged Series", series_number=1, isbn="9780000000001", media_type=media_type, source="tags")
+
+    class FailingAIResolver:
+        name = "should-not-run"
+
+        def resolve(self, **kwargs):
+            raise AssertionError("AI should not run for complete embedded metadata")
+
+    monkeypatch.setattr("borganizer.organizer.extract_metadata", tagged_metadata)
+    database = Database(tmp_path / "library.db")
+    proposals = propose(config(incoming, library, tmp_path / "library.db", ai_enabled=True), database, ai_resolver=FailingAIResolver())
+
+    assert len(proposals) == 1
+    assert "AI resolver" not in proposals[0].reason
+
+
+def test_low_confidence_metadata_is_escalated_to_ai(tmp_path):
+    incoming = tmp_path / "incoming"
+    library = tmp_path / "library"
+    incoming.mkdir()
+    (incoming / "Joseph Conrad - 003 - Heart of Darkness.mp3").write_bytes(b"new")
+
+    database = Database(tmp_path / "library.db")
+    proposals = propose(config(incoming, library, tmp_path / "library.db", ai_enabled=True), database, ai_resolver=FakeAIResolver())
+
+    assert proposals[0].confidence == 0.97
+    assert proposals[0].title == "The Final Empire"
+    assert "AI resolver: fake-ai" in proposals[0].reason
+
+
+def test_low_confidence_metadata_is_not_proposed_without_ai_result(tmp_path):
+    incoming = tmp_path / "incoming"
+    library = tmp_path / "library"
+    incoming.mkdir()
+    (incoming / "Joseph Conrad - 003 - Heart of Darkness.mp3").write_bytes(b"new")
+
+    class LowConfidenceAI:
+        name = "low-confidence"
+
+        def resolve(self, **kwargs):
+            return AIResolution("003", "Joseph Conrad", None, None, 0.6)
+
+    database = Database(tmp_path / "library.db")
+    proposals = propose(config(incoming, library, tmp_path / "library.db", ai_enabled=True), database, ai_resolver=LowConfidenceAI())
+
+    assert proposals == []
+
+
+def test_ai_result_must_exist_in_metadata_provider(tmp_path):
+    incoming = tmp_path / "incoming"
+    library = tmp_path / "library"
+    incoming.mkdir()
+    (incoming / "Joseph Conrad - 003 - Heart of Darkness.mp3").write_bytes(b"new")
+
+    class EmptyMetadataProvider(MetadataProvider):
+        name = "empty"
+
+        def search(self, metadata):
+            return []
+
+        def get_book(self, identifier):
+            return None
+
+    database = Database(tmp_path / "library.db")
+    proposals = propose(
+        config(incoming, library, tmp_path / "library.db", ai_enabled=True),
+        database,
+        provider=EmptyMetadataProvider(),
+        ai_resolver=FakeAIResolver(),
+    )
+
+    assert proposals == []
+
+
+def test_numeric_ai_series_is_rejected(tmp_path):
+    incoming = tmp_path / "incoming"
+    library = tmp_path / "library"
+    incoming.mkdir()
+    (incoming / "Joseph Conrad - 003 - Heart of Darkness.mp3").write_bytes(b"new")
+
+    class NumericSeriesAI:
+        name = "numeric-series"
+
+        def resolve(self, **kwargs):
+            return AIResolution("Heart of Darkness", "Joseph Conrad", "3", 3, 0.95)
+
+    database = Database(tmp_path / "library.db")
+    proposals = propose(config(incoming, library, tmp_path / "library.db", ai_enabled=True), database, ai_resolver=NumericSeriesAI())
+
+    assert proposals == []
 
 
 def test_duplicate_book_destinations_preserve_track_names(tmp_path, monkeypatch):

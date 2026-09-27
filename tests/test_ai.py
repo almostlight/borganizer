@@ -26,8 +26,13 @@ def test_ollama_resolver_uses_local_chat_contract():
             request = json.loads(self.rfile.read(length))
             assert request["model"] == "qwen3:8b"
             assert request["stream"] is False
+            assert request["think"] is False
             assert request["format"] == "json"
             assert request["options"]["num_thread"] == 4
+            assert request["keep_alive"] == "30m"
+            assert request["options"]["num_predict"] == 64
+            assert request["options"]["num_ctx"] == 1024
+            assert request["messages"][1]["content"].startswith("filename:")
             response = {"message": {"content": json.dumps({
                 "book": "The Final Empire",
                 "author": "Brandon Sanderson",

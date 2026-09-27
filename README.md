@@ -55,8 +55,16 @@ The standalone Ollama step can be rerun later:
 sudo ./scripts/install-ollama.sh
 ```
 
-It installs Ollama using the official installer, pulls `qwen3:8b`, and enables
-the Ollama provider with four threads in `/opt/borganizer/config.yaml`.
+It installs Ollama using the official installer, selects a Qwen3 8B
+quantization from available RAM, pulls it, and enables the Ollama provider with
+four threads in `/opt/borganizer/config.yaml`. With `auto`, at least 12 GiB
+available RAM selects `qwen3:8b-q8_0`; at least 6 GiB selects the default
+`qwen3:8b` Q4_K_M package. You can override the choice explicitly:
+
+```bash
+sudo ./scripts/install-ollama.sh --quantization q4_k_m
+sudo ./scripts/install-ollama.sh --quantization q8_0
+```
 
 ```bash
 sudo apt update

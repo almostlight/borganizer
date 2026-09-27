@@ -94,26 +94,31 @@ class OllamaResolver(AIResolver):
         self.timeout_seconds = timeout_seconds
 
     def resolve(self, *, filename: str, embedded: BookMetadata, candidate_books: list[str]) -> AIResolution | None:
-        prompt = {
-            "filename": filename,
-            "embedded_title": embedded.title,
-            "embedded_artist": embedded.author,
-            "candidate_books": candidate_books,
-        }
+        prompt = "\n".join(
+            value for value in (
+                f"filename: {filename}" if filename else "",
+                f"title: {embedded.title}" if embedded.title else "",
+                f"author: {embedded.author}" if embedded.author else "",
+                f"candidates: {', '.join(candidate_books)}" if candidate_books else "",
+            )
+        )
         body = json.dumps({
             "model": self.model,
             "stream": False,
+            "think": False,
             "format": "json",
+            "keep_alive": "30m",
             "messages": [
-                {"role": "system", "content": "Identify the book only. Return JSON with book, author, series, series_number, confidence. Never return filesystem commands."},
-                {"role": "user", "content": json.dumps(prompt)},
+                {"role": "system", "content": "Return only JSON: book, author, series, series_number, confidence."},
+                {"role": "user", "content": prompt},
             ],
-            "options": {"temperature": 0, "num_thread": self.threads},
+            "options": {"temperature": 0, "num_thread": self.threads, "num_predict": 64, "num_ctx": 1024},
         }).encode()
         request = urllib.request.Request(self.endpoint, data=body, method="POST", headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
             payload = json.load(response)
-        return _resolution(json.loads(payload["message"]["content"]))
+        content = payload["message"]["content"]
+        return _resolution(json.loads(content))
 
 
 def build_ai_resolver(config) -> AIResolver | None:
