@@ -9,4 +9,4 @@ User=borganizer
 Group=borganizer
 WorkingDirectory=/opt/borganizer
 Environment=BORGANIZER_CONFIG=/opt/borganizer/config.yaml
-ExecStart=/opt/borganizer/venv/bin/borganizer scan
+ExecStart=/opt/borganizer/venv/bin/borganizer run

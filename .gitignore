@@ -6,3 +6,8 @@ venv/
 *.db-shm
 *.db-wal
 config.yaml
+*:Zone.Identifier
+Thumbs.db
+desktop.ini
+.DS_Store
+audiobooks/

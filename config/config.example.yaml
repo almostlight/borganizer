@@ -1,6 +1,7 @@
 incoming_dir: /mnt/media/incoming
 library_dir: /mnt/media/books
 database: /var/lib/borganizer/library.db
+operation_mode: safe
 
 scan:
   extensions:
@@ -19,3 +20,15 @@ safety:
   allow_cross_device_move: false
   require_confirmation_for_low_confidence: true
   auto_apply_threshold: 0.95
+
+metadata:
+  enabled: false
+  provider: openlibrary
+  cache_ttl_seconds: 2592000
+
+ai:
+  enabled: false
+  provider: openai
+  endpoint: https://api.openai.com/v1/chat/completions
+  model: gpt-4o-mini
+  api_key_env: OPENAI_API_KEY

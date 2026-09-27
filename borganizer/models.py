@@ -10,10 +10,13 @@ class BookMetadata:
     author: str | None = None
     series: str | None = None
     series_number: float | None = None
+    series_position_label: str | None = None
     narrator: str | None = None
     publisher: str | None = None
     language: str | None = None
     isbn: str | None = None
+    publication_year: int | None = None
+    cover_url: str | None = None
     media_type: str | None = None
     source: str | None = None
 
@@ -26,6 +29,7 @@ class FileCandidate:
     metadata: BookMetadata
     confidence: float
     notes: list[str]
+    component_group: str | None = None
 
 
 @dataclass
@@ -42,3 +46,7 @@ class Proposal:
     series_number: float | None
     status: str = "pending"
     reason: str = ""
+    series_position_label: str | None = None
+    match_kind: str | None = None
+    match_method: str | None = None
+    matched_path: Path | None = None

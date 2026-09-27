@@ -27,3 +27,7 @@ def format_series_number(number: float | None, width: int = 2) -> str | None:
     if float(number).is_integer():
         return f"{int(number):0{width}d}"
     return f"{number:0{width}.2f}".rstrip("0").rstrip(".")
+
+
+def format_series_position(number: float | None, label: str | None, width: int = 2) -> str | None:
+    return format_series_number(number, width) or (label.strip() if label else None)

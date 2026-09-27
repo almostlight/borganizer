@@ -16,7 +16,13 @@ Author/
 
 Standalone books omit the series directory.
 
-The current release is deliberately non-AI. It extracts embedded metadata, parses filenames, hashes files, stores proposals in SQLite, and requires an explicit apply step. AI can later be added as an ambiguity resolver.
+The organizer extracts embedded metadata, parses filenames, hashes files, stores proposals and audit records in SQLite, and supports optional external metadata and AI resolution. Safe mode keeps an explicit review step; automatic mode applies only high-confidence proposals.
+
+Book matching is ordered from strongest to weakest evidence: ISBN or exact identifier, normalized title and author, series and number, then fuzzy title matching. A match is classified as the same edition, a different edition, or a duplicate file. Metadata lookup and AI are reserved fallback stages and are not enabled by default.
+
+Series positions are stored separately from their directory rendering. Numeric positions such as `0.5`, `2.5`, and `3.1` use `series_number`; named positions such as `Companion`, `Short Stories`, `Collection`, and `Box Set` use `series_position_label`. Numeric positions render as `0.5 - Title`, while named positions render as `Companion - Title`.
+
+When enabled, the AI resolver receives only filename, embedded metadata, and candidate book names. It returns validated book metadata; Python converts that metadata into a destination path and the filesystem layer performs the move. The AI cannot issue filesystem commands. Multi-file books retain unique source track names inside the shared book directory.
 
 ## Install on Debian
 
@@ -39,11 +45,20 @@ Adjust `incoming_dir`, `library_dir`, and `database` in `/opt/borganizer/config.
 
 ## First scan
 
+The default `operation_mode: safe` only creates proposals. Set it to `automatic` when the library is ready for unattended operation; the timer will then apply only proposals at or above `auto_apply_threshold` and leave the rest in the review queue.
+
 Use the service account for all operations:
 
 ```bash
 sudo -u borganizer BORGANIZER_CONFIG=/opt/borganizer/config.yaml \
   /opt/borganizer/venv/bin/borganizer scan
+```
+
+For a one-shot run using the configured mode:
+
+```bash
+sudo -u borganizer BORGANIZER_CONFIG=/opt/borganizer/config.yaml \
+  /opt/borganizer/venv/bin/borganizer run
 ```
 
 Then inspect proposals:
@@ -54,6 +69,16 @@ sudo -u borganizer BORGANIZER_CONFIG=/opt/borganizer/config.yaml \
 ```
 
 Nothing has moved yet.
+
+Review output labels each proposal `MOVE`, `REVIEW`, or `IGNORE`. Approve selected proposals or all proposals at or above the configured confidence threshold:
+
+```bash
+sudo -u borganizer BORGANIZER_CONFIG=/opt/borganizer/config.yaml \
+  /opt/borganizer/venv/bin/borganizer approve 12 13
+
+sudo -u borganizer BORGANIZER_CONFIG=/opt/borganizer/config.yaml \
+  /opt/borganizer/venv/bin/borganizer approve-all-high-confidence
+```
 
 Apply approved proposals by ID:
 
@@ -74,8 +99,77 @@ Undo the most recent batch:
 ```bash
 sudo -u borganizer BORGANIZER_CONFIG=/opt/borganizer/config.yaml \
   /opt/borganizer/venv/bin/borganizer undo
+
+# Or reverse a specific recorded batch:
+sudo -u borganizer BORGANIZER_CONFIG=/opt/borganizer/config.yaml \
+  /opt/borganizer/venv/bin/borganizer undo BATCH_ID
+```
+
+Each move is recorded before filesystem changes begin and completed only after the destination hash is verified. The audit record includes the source and destination paths, hash, proposal ID, reason, confidence, timestamps, batch ID, and operation state. Existing destinations are never overwritten; cross-filesystem moves use a temporary destination and checksum verification.
+
+Messy audiobook components are grouped using their containing book directory or conservative track/part/CD markers. Their original component names are preserved inside the one audiobook destination. ZIP files are never extracted automatically; inspect one safely with:
+
+```bash
+borganizer inspect Book.zip
+```
+
+## Configuration
+
+The complete example is in `config/config.example.yaml`. The important controls are:
+
+```yaml
+operation_mode: safe       # safe or automatic
+
+safety:
+  auto_apply_threshold: 0.95
+
+metadata:
+  enabled: false           # Open Library, cached in SQLite
+  provider: openlibrary
+
+ai:
+  enabled: false
+  provider: openai
+  api_key_env: OPENAI_API_KEY
+```
+
+Keep `operation_mode: safe` until review output is understood. In `automatic` mode, only pending proposals at or above `auto_apply_threshold` are moved; everything else remains available to `review`.
+
+### OpenAI key
+
+The key is read from the environment variable named by `ai.api_key_env`; it is not stored in YAML or SQLite:
+
+```bash
+export OPENAI_API_KEY="your-key"
+borganizer run
+```
+
+For systemd, use an environment file instead of putting the key in the configuration file:
+
+```ini
+# /etc/borganizer/openai.env
+OPENAI_API_KEY=your-key
+```
+
+Add `EnvironmentFile=/etc/borganizer/openai.env` to `systemd/borganizer.service` and protect the file with `chmod 600`.
+
+## Testing
+
+Install the optional test dependencies and run the suite:
+
+```bash
+python3 -m pip install -e '.[test]'
+python3 -m pytest
 ```
 
 ## systemd
 
-Copy `systemd/borganizer.service` into `/etc/systemd/system/` and enable it only when you are happy with the manual workflow.
+Copy the units into `/etc/systemd/system/`, review the configuration, and enable the timer when ready:
+
+```bash
+sudo cp systemd/borganizer.service systemd/borganizer.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now borganizer.timer
+```
+
+The timer invokes `borganizer run` every ten minutes. Safe mode creates proposals only; automatic mode also applies high-confidence proposals. Every operation is audited and can be reversed with `borganizer undo BATCH_ID`.

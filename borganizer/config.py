@@ -22,6 +22,15 @@ class Config:
     overwrite_existing: bool
     allow_cross_device_move: bool
     auto_apply_threshold: float
+    operation_mode: str = "safe"
+    metadata_enabled: bool = False
+    metadata_provider: str = "openlibrary"
+    metadata_cache_ttl_seconds: int = 30 * 24 * 60 * 60
+    ai_enabled: bool = False
+    ai_provider: str = "openai"
+    ai_endpoint: str = "https://api.openai.com/v1/chat/completions"
+    ai_model: str = "gpt-4o-mini"
+    ai_api_key_env: str = "OPENAI_API_KEY"
 
 
 def load_config(path: str | Path | None = None) -> Config:
@@ -32,6 +41,8 @@ def load_config(path: str | Path | None = None) -> Config:
     scan = data.get("scan", {})
     naming = data.get("naming", {})
     safety = data.get("safety", {})
+    metadata = data.get("metadata", {})
+    ai = data.get("ai", {})
 
     return Config(
         incoming_dir=Path(data["incoming_dir"]).expanduser().resolve(),
@@ -46,4 +57,13 @@ def load_config(path: str | Path | None = None) -> Config:
         overwrite_existing=bool(safety.get("overwrite_existing", False)),
         allow_cross_device_move=bool(safety.get("allow_cross_device_move", False)),
         auto_apply_threshold=float(safety.get("auto_apply_threshold", 0.95)),
+        operation_mode=str(data.get("operation_mode", "safe")).lower(),
+        metadata_enabled=bool(metadata.get("enabled", False)),
+        metadata_provider=str(metadata.get("provider", "openlibrary")),
+        metadata_cache_ttl_seconds=int(metadata.get("cache_ttl_seconds", 30 * 24 * 60 * 60)),
+        ai_enabled=bool(ai.get("enabled", False)),
+        ai_provider=str(ai.get("provider", "openai")),
+        ai_endpoint=str(ai.get("endpoint", "https://api.openai.com/v1/chat/completions")),
+        ai_model=str(ai.get("model", "gpt-4o-mini")),
+        ai_api_key_env=str(ai.get("api_key_env", "OPENAI_API_KEY")),
     )
