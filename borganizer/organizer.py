@@ -261,7 +261,7 @@ def _lookup_ai(candidate: FileCandidate, resolver: AIResolver, config: Config, p
     candidate.notes.append(f"AI resolver: {resolver.name}")
 
 
-def propose(config: Config, db: Database, provider: MetadataProvider | None = None, ai_resolver: AIResolver | None = None, cancel_event=None) -> list[Proposal]:
+def propose(config: Config, db: Database, provider: MetadataProvider | None = None, ai_resolver: AIResolver | None = None, cancel_event=None, progress_callback=None) -> list[Proposal]:
     proposals: list[Proposal] = []
     ai_validation_provider = provider
     if ai_validation_provider is None and config.ai_enabled and ai_resolver and ai_resolver.name in {"ollama", "openai"}:
@@ -280,6 +280,8 @@ def propose(config: Config, db: Database, provider: MetadataProvider | None = No
     for candidate in candidates:
         if cancel_event is not None and cancel_event.is_set():
             break
+        if progress_callback is not None:
+            progress_callback(candidate.path)
         item_started = time.perf_counter()
         path = candidate.path
         if not candidate:

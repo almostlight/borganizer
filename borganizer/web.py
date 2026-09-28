@@ -51,7 +51,7 @@ h1, h2, p { margin: 0; } h1 { font-size: 34px; line-height: 1.1; letter-spacing:
 
 
 def _page(title: str, body: str) -> bytes:
-    document = f"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>{html.escape(title)}</title><style>{PAGE_STYLE}</style></head><body><div class='app-shell'><aside class='sidebar'><a class='brand' href='/'><span class='brand-mark'>B</span><span>Borganizer</span></a><div class='nav-label'>Library desk</div><a class='nav-link' href='#review-queue'>Review queue</a><a class='nav-link' href='#configuration'>Configuration</a></aside><main>{body}</main></div><script>const selectAll=document.getElementById('select-all');const boxes=[...document.querySelectorAll('.proposal-checkbox')];if(selectAll){{selectAll.addEventListener('change',()=>boxes.forEach(box=>box.checked=selectAll.checked));boxes.forEach(box=>box.addEventListener('change',()=>{{selectAll.checked=boxes.length>0&&boxes.every(item=>item.checked);selectAll.indeterminate=boxes.some(item=>item.checked)&&!selectAll.checked;}}));}}let lastScanStatus=null;const pollScan=()=>fetch('/scan-status',{{cache:'no-store'}}).then(response=>response.json()).then(state=>{{const progressVisible=Boolean(document.querySelector('.scan-progress'));if(state.status==='running'&&!progressVisible){{location.reload();return;}}if(lastScanStatus==='running'&&state.status!=='running'){{location.reload();return;}}lastScanStatus=state.status;setTimeout(pollScan,1000);}}).catch(()=>setTimeout(pollScan,2000));pollScan();document.querySelectorAll('.error').forEach(error=>setTimeout(()=>error.remove(),10000));</script></body></html>"
+    document = f"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>{html.escape(title)}</title><style>{PAGE_STYLE}</style></head><body><div class='app-shell'><aside class='sidebar'><a class='brand' href='/'><span class='brand-mark'>B</span><span>Borganizer</span></a><div class='nav-label'>Library desk</div><a class='nav-link' href='#scanning'>Scanning</a><a class='nav-link' href='#review-queue'>Review queue</a><a class='nav-link' href='#configuration'>Configuration</a></aside><main>{body}</main></div><script>const selectAll=document.getElementById('select-all');const boxes=[...document.querySelectorAll('.proposal-checkbox')];if(selectAll){{selectAll.addEventListener('change',()=>boxes.forEach(box=>box.checked=selectAll.checked));boxes.forEach(box=>box.addEventListener('change',()=>{{selectAll.checked=boxes.length>0&&boxes.every(item=>item.checked);selectAll.indeterminate=boxes.some(item=>item.checked)&&!selectAll.checked;}}));}}let lastScanStatus=null;const pollScan=()=>fetch('/scan-status',{{cache:'no-store'}}).then(response=>response.json()).then(state=>{{const progressVisible=Boolean(document.querySelector('.scan-progress'));const currentFile=document.getElementById('scan-current-file');if(currentFile&&state.current_file)currentFile.textContent=state.current_file;if(state.status==='running'&&!progressVisible){{location.reload();return;}}if(lastScanStatus==='running'&&state.status!=='running'){{location.reload();return;}}lastScanStatus=state.status;setTimeout(pollScan,1000);}}).catch(()=>setTimeout(pollScan,2000));pollScan();document.querySelectorAll('.error').forEach(error=>setTimeout(()=>error.remove(),10000));</script></body></html>"
     return document.encode("utf-8")
 
 
@@ -75,15 +75,15 @@ class BorganizerHandler(BaseHTTPRequestHandler):
     def _database(self) -> Database:
         return Database(self.server.config.database)  # type: ignore[attr-defined]
 
-    def _set_scan_state(self, status: str, message: str = "") -> None:
+    def _set_scan_state(self, status: str, message: str = "", current_file: str = "") -> None:
         with self.server.scan_lock:  # type: ignore[attr-defined]
-            self.server.scan_state = {"status": status, "message": message}  # type: ignore[attr-defined]
+            self.server.scan_state = {"status": status, "message": message, "current_file": current_file}  # type: ignore[attr-defined]
 
     def _run_scan(self) -> None:
         try:
             config = self.server.config  # type: ignore[attr-defined]
             database = self._database()
-            propose(config, database, build_metadata_provider(config, database), build_ai_resolver(config), cancel_event=self.server.scan_cancel_event)  # type: ignore[attr-defined]
+            propose(config, database, build_metadata_provider(config, database), build_ai_resolver(config), cancel_event=self.server.scan_cancel_event, progress_callback=lambda path: self._set_scan_state("running", current_file=str(path)))  # type: ignore[attr-defined]
             if self.server.scan_cancel_event.is_set():  # type: ignore[attr-defined]
                 self._set_scan_state("stopped", "Scan stopped by user")
             else:
@@ -132,14 +132,18 @@ class BorganizerHandler(BaseHTTPRequestHandler):
         if error:
             body += f"<div class='error'>Error: {html.escape(error)}</div>"
         scan = _scan_snapshot(self.server)
-        if scan["status"] == "running":
-            body += "<div class='scan-progress' role='status'><div class='progress-track'><span></span></div><span>Scanning incoming files...</span></div>"
-        elif scan["status"] == "error":
-            body += f"<div class='error'>Scan error: {html.escape(str(scan['message']))}</div>"
         body += "<section class='stats'>" + "".join(f"<div class='stat'><strong>{counts.get(status, 0)}</strong><span>{status}</span></div>" for status in ("pending", "applied", "rejected", "undone")) + "</section>"
-        body += "<details class='section-dropdown' id='review-queue' open><summary>Pending proposals</summary><div class='section-body'>"
+        scan_open = " open" if scan["status"] == "running" else ""
+        current_file = html.escape(str(scan.get("current_file", "")))
+        scan_content = "<div class='scan-progress' role='status'><div class='progress-track'><span></span></div><span>Scanning incoming files...</span></div>" if scan["status"] == "running" else "<p class='muted'>Ready to scan incoming files.</p>"
+        if scan["status"] == "error":
+            scan_content = f"<div class='error'>Scan error: {html.escape(str(scan['message']))}</div>"
+        if scan["status"] == "running":
+            scan_content += f"<p class='path'>Current file: <span id='scan-current-file'>{current_file}</span></p>"
         stop_disabled = "" if scan["status"] == "running" else " disabled"
-        body += f"<div class='toolbar'><span class='muted'>Review and organize incoming files.</span><div class='bulk-actions'><label class='select-all'><input id='select-all' type='checkbox'> Select all</label><form method='post' action='/scan'><button>Scan incoming</button></form><form method='post' action='/scan-stop'><button class='danger'{stop_disabled}>Stop scan</button></form>{undo}<form id='bulk-actions' method='post' action='/bulk'><button class='approve' name='action' value='approve'>Approve selected</button><button class='reject' name='action' value='reject'>Reject selected</button></form></div></div>"
+        body += f"<details class='section-dropdown' id='scanning'{scan_open}><summary>Scanning</summary><div class='section-body'>{scan_content}<div class='bulk-actions'><form method='post' action='/scan'><button>Scan incoming</button></form><form method='post' action='/scan-stop'><button class='danger'{stop_disabled}>Stop scan</button></form></div></div></details>"
+        body += "<details class='section-dropdown' id='review-queue' open><summary>Pending proposals</summary><div class='section-body'>"
+        body += f"<div class='toolbar'><span class='muted'>Review and organize incoming files.</span><div class='bulk-actions'><label class='select-all'><input id='select-all' type='checkbox'> Select all</label>{undo}<form id='bulk-actions' method='post' action='/bulk'><button class='approve' name='action' value='approve'>Approve selected</button><button class='reject' name='action' value='reject'>Reject selected</button></form></div></div>"
         body += "".join(cards) or "<p class='muted'>Nothing needs review.</p>"
         body += "</div></details>"
         body += f"""
@@ -248,7 +252,7 @@ def serve(config: Config, host: str = "127.0.0.1", port: int = 8765) -> None:
     server = ThreadingHTTPServer((host, port), BorganizerHandler)
     server.config = config  # type: ignore[attr-defined]
     server.scan_lock = Lock()  # type: ignore[attr-defined]
-    server.scan_state = {"status": "idle", "message": ""}  # type: ignore[attr-defined]
+    server.scan_state = {"status": "idle", "message": "", "current_file": ""}  # type: ignore[attr-defined]
     server.scan_cancel_event = Event()  # type: ignore[attr-defined]
     print(f"Borganizer web UI: http://{host}:{port}")
     try:

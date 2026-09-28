@@ -192,6 +192,8 @@ def test_web_scan_reports_progress_while_running(tmp_path, monkeypatch):
         url = f"http://127.0.0.1:{server.server_port}"
         response = urlopen(Request(f"{url}/scan", data=b"", method="POST")).read().decode()
         assert "Scanning incoming files" in response
+        assert "id='scanning'" in response
+        assert "action='/scan-stop'" in response
         assert "lastScanStatus" in response
         assert "cache:'no-store'" in response
         assert started.wait(timeout=2)
