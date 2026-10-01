@@ -99,7 +99,6 @@ data.setdefault("ai", {})
 data["ai"].setdefault("provider", "ollama")
 data["ai"].setdefault("endpoint", "http://127.0.0.1:11434/api/chat")
 data["ai"].setdefault("model", "qwen3:8b")
-data["ai"].setdefault("threads", 4)
 with Path(config_path).open("w", encoding="utf-8") as stream:
     yaml.safe_dump(data, stream, sort_keys=False)
 PY
@@ -109,12 +108,13 @@ PY
 }
 
 configure_operator_access() {
-    [[ -n "$OPERATOR_USER" && "$OPERATOR_USER" != root ]] || return 0
-    id "$OPERATOR_USER" >/dev/null 2>&1 || die "operator user does not exist: $OPERATOR_USER"
-    usermod --append --groups "$SERVICE_USER" "$OPERATOR_USER"
-    chgrp -R "$SERVICE_USER" "$APP_ROOT" "$STATE_ROOT" "$INCOMING_DIR" "$LIBRARY_DIR"
-    chmod -R g+rwX "$STATE_ROOT" "$INCOMING_DIR" "$LIBRARY_DIR"
-    chmod g+rx "$APP_ROOT" "$APP_ROOT/venv" "$APP_ROOT/venv/bin" "$APP_ROOT/venv/bin/librarian"
+    if [[ -n "$OPERATOR_USER" && "$OPERATOR_USER" != root ]]; then
+        id "$OPERATOR_USER" >/dev/null 2>&1 || die "operator user does not exist: $OPERATOR_USER"
+        usermod --append --groups "$SERVICE_USER" "$OPERATOR_USER"
+        chgrp -R "$SERVICE_USER" "$APP_ROOT" "$STATE_ROOT" "$INCOMING_DIR" "$LIBRARY_DIR"
+        chmod -R g+rwX "$STATE_ROOT" "$INCOMING_DIR" "$LIBRARY_DIR"
+        chmod g+rx "$APP_ROOT" "$APP_ROOT/venv" "$APP_ROOT/venv/bin" "$APP_ROOT/venv/bin/librarian"
+    fi
     install -d -m 0755 /usr/local/bin
     ln -sfn "$APP_ROOT/venv/bin/librarian" /usr/local/bin/librarian
 }

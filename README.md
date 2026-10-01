@@ -82,9 +82,8 @@ librarian review
 librarian run
 ```
 
-The explicit `/opt/librarian/venv/bin/librarian --config ...` form remains
-useful for service-account troubleshooting, but is not required for normal
-operator use.
+The service account is used by systemd; normal operator commands use the
+installed `librarian` executable from `PATH`.
 
 See the complete command reference at any time:
 
@@ -120,7 +119,7 @@ sudo ./scripts/install-ollama.sh
 
 It installs Ollama using the official installer, selects a Qwen3 8B
 quantization from available RAM, pulls it, and enables the Ollama provider with
-four threads in `/opt/librarian/config.yaml`. With `auto`, at least 12 GiB
+all logical CPU cores in `/opt/librarian/config.yaml`. With `auto`, at least 12 GiB
 available RAM selects `qwen3:8b-q8_0`; at least 6 GiB selects the default
 `qwen3:8b` Q4_K_M package. You can override the choice explicitly:
 
@@ -159,25 +158,22 @@ account, virtual environment, permissions, and systemd units.
 
 The default `operation_mode: safe` only creates proposals. Set it to `automatic` when the library is ready for unattended operation; the timer will then apply only proposals at or above `auto_apply_threshold` and leave the rest in the review queue.
 
-Use the service account for all operations:
+Use the installed command for all operations:
 
 ```bash
-sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
-  /opt/librarian/venv/bin/librarian scan
+librarian scan
 ```
 
 For a one-shot run using the configured mode:
 
 ```bash
-sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
-  /opt/librarian/venv/bin/librarian run
+librarian run
 ```
 
 Then inspect proposals:
 
 ```bash
-sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
-  /opt/librarian/venv/bin/librarian review
+librarian review
 ```
 
 Nothing has moved yet.
@@ -189,8 +185,7 @@ Nothing has moved yet.
 Before the first run, confirm the three paths in the active configuration:
 
 ```bash
-sudo -u librarian /opt/librarian/venv/bin/librarian \
-  --config /opt/librarian/config.yaml status
+librarian status
 ```
 
 The service account must be able to read the incoming directory and write the
@@ -203,16 +198,14 @@ targeted ACL rather than making the whole home directory public.
 `scan` creates proposals and prints them without moving files:
 
 ```bash
-sudo -u librarian /opt/librarian/venv/bin/librarian \
-  --config /opt/librarian/config.yaml scan
+librarian scan
 ```
 
 `run` scans and then follows `operation_mode`. With the default `safe` mode it
 only queues proposals:
 
 ```bash
-sudo -u librarian /opt/librarian/venv/bin/librarian \
-  --config /opt/librarian/config.yaml run
+librarian run
 ```
 
 Each proposal includes confidence, source and destination paths, matching
@@ -223,15 +216,13 @@ evidence, AI/metadata notes, and the per-item processing time.
 Review from the terminal:
 
 ```bash
-sudo -u librarian /opt/librarian/venv/bin/librarian \
-  --config /opt/librarian/config.yaml review
+librarian review
 ```
 
 Or start the localhost dashboard:
 
 ```bash
-sudo -u librarian /opt/librarian/venv/bin/librarian \
-  --config /opt/librarian/config.yaml web --host 127.0.0.1 --port 8765
+librarian web --host 127.0.0.1 --port 8765
 ```
 
 Open <http://127.0.0.1:8765>. The dashboard supports individual and bulk
@@ -245,25 +236,21 @@ files.
 Approve and apply selected proposal IDs:
 
 ```bash
-sudo -u librarian /opt/librarian/venv/bin/librarian \
-  --config /opt/librarian/config.yaml approve 12 13
+librarian approve 12 13
 ```
 
 Reject proposals without moving files:
 
 ```bash
-sudo -u librarian /opt/librarian/venv/bin/librarian \
-  --config /opt/librarian/config.yaml reject 14 15
+librarian reject 14 15
 ```
 
 Apply already-approved or high-confidence work:
 
 ```bash
-sudo -u librarian /opt/librarian/venv/bin/librarian \
-  --config /opt/librarian/config.yaml apply 12 13
+librarian apply 12 13
 
-sudo -u librarian /opt/librarian/venv/bin/librarian \
-  --config /opt/librarian/config.yaml apply --auto
+librarian apply --auto
 ```
 
 The filesystem layer verifies hashes, refuses to overwrite existing files,
@@ -274,15 +261,13 @@ records every operation in SQLite, and supports undo.
 Undo the newest completed batch:
 
 ```bash
-sudo -u librarian /opt/librarian/venv/bin/librarian \
-  --config /opt/librarian/config.yaml undo
+librarian undo
 ```
 
 Undo a specific batch ID:
 
 ```bash
-sudo -u librarian /opt/librarian/venv/bin/librarian \
-  --config /opt/librarian/config.yaml undo BATCH_ID
+librarian undo BATCH_ID
 ```
 
 Use `status` to see pending, applied, rejected, undone, duplicate, and conflict
@@ -356,8 +341,7 @@ on the proposal and do not grant the model filesystem access.
 Check the active paths and database counts:
 
 ```bash
-sudo -u librarian /opt/librarian/venv/bin/librarian \
-  --config /opt/librarian/config.yaml status
+librarian status
 ```
 
 If a scan appears stuck, open the web dashboard and use **Stop scan**. A stop
@@ -373,8 +357,7 @@ and metadata cache only; it never deletes incoming or library files.
 Start the local review dashboard with:
 
 ```bash
-sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
-  /opt/librarian/venv/bin/librarian web
+librarian web
 ```
 
 Open http://127.0.0.1:8765 in a browser. The interface is bound to localhost by default and supports reviewing, approving, rejecting, and undoing audited batches. Use `--port` to select another local port.
@@ -414,36 +397,30 @@ It listens on `0.0.0.0:8765` and restarts automatically if it exits.
 Review output labels each proposal `MOVE`, `REVIEW`, or `IGNORE`. Approve selected proposals or all proposals at or above the configured confidence threshold:
 
 ```bash
-sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
-  /opt/librarian/venv/bin/librarian approve 12 13
+librarian approve 12 13
 
-sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
-  /opt/librarian/venv/bin/librarian approve-all-high-confidence
+librarian approve-all-high-confidence
 ```
 
 Apply approved proposals by ID:
 
 ```bash
-sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
-  /opt/librarian/venv/bin/librarian apply 12 13 14
+librarian apply 12 13 14
 ```
 
 Or apply all high-confidence proposals:
 
 ```bash
-sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
-  /opt/librarian/venv/bin/librarian apply --auto
+librarian apply --auto
 ```
 
 Undo the most recent batch:
 
 ```bash
-sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
-  /opt/librarian/venv/bin/librarian undo
+librarian undo
 
 # Or reverse a specific recorded batch:
-sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
-  /opt/librarian/venv/bin/librarian undo BATCH_ID
+librarian undo BATCH_ID
 ```
 
 Each move is recorded before filesystem changes begin and completed only after the destination hash is verified. The audit record includes the source and destination paths, hash, proposal ID, reason, confidence, timestamps, batch ID, and operation state. Existing destinations are never overwritten; cross-filesystem moves use a temporary destination and checksum verification.
@@ -473,7 +450,7 @@ ai:
   provider: ollama
   endpoint: http://127.0.0.1:11434/api/chat
   model: qwen3:8b
-  threads: 4
+  # Omit threads to use all logical CPU cores.
 
 scan:
   extensions:

@@ -8,6 +8,9 @@ from typing import Any
 import yaml
 
 
+DEFAULT_AI_THREADS = os.cpu_count() or 1
+
+
 @dataclass(frozen=True)
 class Config:
     incoming_dir: Path
@@ -30,7 +33,7 @@ class Config:
     ai_provider: str = "openai"
     ai_endpoint: str = "https://api.openai.com/v1/chat/completions"
     ai_model: str = "gpt-4o-mini"
-    ai_threads: int = 4
+    ai_threads: int = DEFAULT_AI_THREADS
     ai_agent_host: str = "127.0.0.1"
     ai_agent_port: int = 11434
     ai_api_key_env: str = "OPENAI_API_KEY"
@@ -71,7 +74,7 @@ def load_config(path: str | Path | None = None) -> Config:
         ai_provider=str(ai.get("provider", "openai")),
         ai_endpoint=str(ai.get("endpoint", "https://api.openai.com/v1/chat/completions")),
         ai_model=str(ai.get("model", "gpt-4o-mini")),
-        ai_threads=int(ai.get("threads", 4)),
+        ai_threads=int(ai.get("threads", DEFAULT_AI_THREADS)),
         ai_agent_host=str(ai.get("agent_host", "127.0.0.1")),
         ai_agent_port=int(ai.get("agent_port", 11434)),
         ai_api_key_env=str(ai.get("api_key_env", "OPENAI_API_KEY")),
@@ -99,8 +102,8 @@ def save_runtime_settings(
         raise ValueError("AI provider must be ollama or openai")
     if not incoming_dir.strip() or not library_dir.strip() or not ai_model.strip():
         raise ValueError("directories and AI model are required")
-    if not 1 <= ai_threads <= 128:
-        raise ValueError("AI threads must be between 1 and 128")
+    if ai_threads < 1:
+        raise ValueError("AI threads must be at least 1")
 
     values = {
         "incoming_dir": str(Path(incoming_dir).expanduser()),

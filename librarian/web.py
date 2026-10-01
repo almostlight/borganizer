@@ -154,7 +154,7 @@ class LibrarianHandler(BaseHTTPRequestHandler):
         <label>Operation mode<select name='operation_mode'><option {'selected' if config.operation_mode == 'safe' else ''}>safe</option><option {'selected' if config.operation_mode == 'automatic' else ''}>automatic</option></select></label>
         <label>AI provider<select name='ai_provider'><option {'selected' if config.ai_provider == 'ollama' else ''}>ollama</option><option {'selected' if config.ai_provider == 'openai' else ''}>openai</option></select></label>
         <label>AI model<input name='ai_model' value='{html.escape(config.ai_model, quote=True)}'></label>
-        <label>Ollama threads<input type='number' min='1' max='128' name='ai_threads' value='{config.ai_threads}'></label>
+        <label>Ollama threads<input type='number' min='1' name='ai_threads' value='{config.ai_threads}'></label>
         <label>AI agent host<input name='ai_agent_host' value='{html.escape(config.ai_agent_host, quote=True)}'></label>
         <label>AI agent port<input type='number' min='1' max='65535' name='ai_agent_port' value='{config.ai_agent_port}'></label>
         <label>AI endpoint<input name='ai_endpoint' value='{html.escape(config.ai_endpoint, quote=True)}'></label>

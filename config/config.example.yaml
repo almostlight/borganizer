@@ -32,5 +32,4 @@ ai:
   provider: ollama
   endpoint: http://127.0.0.1:11434/api/chat
   model: qwen3:8b
-  threads: 4
   api_key_env: OPENAI_API_KEY

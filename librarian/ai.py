@@ -87,10 +87,10 @@ class OpenAIResolver(AIResolver):
 class OllamaResolver(AIResolver):
     name = "ollama"
 
-    def __init__(self, endpoint: str, model: str, threads: int = 4, timeout_seconds: float = 120.0):
+    def __init__(self, endpoint: str, model: str, threads: int | None = None, timeout_seconds: float = 120.0):
         self.endpoint = endpoint
         self.model = model
-        self.threads = threads
+        self.threads = threads if threads is not None else (os.cpu_count() or 1)
         self.timeout_seconds = timeout_seconds
 
     def resolve(self, *, filename: str, embedded: BookMetadata, candidate_books: list[str]) -> AIResolution | None:

@@ -77,7 +77,7 @@ select_quantization() {
 select_quantization
 
 if [[ "$DRY_RUN" == yes ]]; then
-    printf 'Dry run: would pull %s (%s) using 4 threads.\n' "$MODEL" "$QUANTIZATION"
+    printf 'Dry run: would pull %s (%s) using all logical CPU cores.\n' "$MODEL" "$QUANTIZATION"
     exit 0
 fi
 
@@ -111,7 +111,7 @@ ai.update({
     "endpoint": "http://127.0.0.1:11434/api/chat",
     "model": os.environ["OLLAMA_MODEL"],
     "quantization": os.environ["OLLAMA_QUANTIZATION"],
-    "threads": 4,
+    "threads": os.cpu_count() or 1,
 })
 with path.open("w", encoding="utf-8") as stream:
     yaml.safe_dump(data, stream, sort_keys=False)
@@ -119,4 +119,4 @@ PY
 chown "$SERVICE_USER:$SERVICE_USER" "$CONFIG_PATH"
 chmod 0640 "$CONFIG_PATH"
 systemctl restart librarian.timer 2>/dev/null || true
-printf 'Ollama is ready with %s (%s); librarian AI is enabled with 4 threads.\n' "$MODEL" "$QUANTIZATION"
+printf 'Ollama is ready with %s (%s); librarian AI is enabled with all logical CPU cores.\n' "$MODEL" "$QUANTIZATION"
