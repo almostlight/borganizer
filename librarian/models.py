@@ -16,6 +16,9 @@ class BookMetadata:
     language: str | None = None
     isbn: str | None = None
     publication_year: int | None = None
+    season_number: int | None = None
+    episode_number: int | None = None
+    year: int | None = None
     cover_url: str | None = None
     media_type: str | None = None
     source: str | None = None

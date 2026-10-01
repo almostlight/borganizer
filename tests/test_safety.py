@@ -2,10 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from borganizer.config import Config
-from borganizer.db import Database
-from borganizer.models import Proposal
-from borganizer.organizer import apply_proposals, undo_latest
+from librarian.config import Config
+from librarian.db import Database
+from librarian.models import Proposal
+from librarian.organizer import apply_proposals, undo_latest
 
 
 def config(tmp_path: Path) -> Config:

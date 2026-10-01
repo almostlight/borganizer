@@ -31,12 +31,15 @@ class Config:
     ai_endpoint: str = "https://api.openai.com/v1/chat/completions"
     ai_model: str = "gpt-4o-mini"
     ai_threads: int = 4
+    ai_agent_host: str = "127.0.0.1"
+    ai_agent_port: int = 11434
     ai_api_key_env: str = "OPENAI_API_KEY"
     config_path: Path | None = None
+    video_extensions: tuple[str, ...] = ()
 
 
 def load_config(path: str | Path | None = None) -> Config:
-    config_path = Path(path or os.environ.get("BORGANIZER_CONFIG", "/opt/borganizer/config.yaml"))
+    config_path = Path(path or os.environ.get("LIBRARIAN_CONFIG", "/opt/librarian/config.yaml"))
     with config_path.open("r", encoding="utf-8") as f:
         data: dict[str, Any] = yaml.safe_load(f) or {}
 
@@ -52,6 +55,7 @@ def load_config(path: str | Path | None = None) -> Config:
         database=Path(data["database"]).expanduser().resolve(),
         audiobook_extensions=tuple(x.lower() for x in scan.get("extensions", {}).get("audiobook", [])),
         ebook_extensions=tuple(x.lower() for x in scan.get("extensions", {}).get("ebook", [])),
+        video_extensions=tuple(x.lower() for x in scan.get("extensions", {}).get("video", [])),
         ignore_hidden=bool(scan.get("ignore_hidden", True)),
         min_stable_age_seconds=int(scan.get("min_stable_age_seconds", 30)),
         series_number_width=int(naming.get("series_number_width", 2)),
@@ -68,6 +72,8 @@ def load_config(path: str | Path | None = None) -> Config:
         ai_endpoint=str(ai.get("endpoint", "https://api.openai.com/v1/chat/completions")),
         ai_model=str(ai.get("model", "gpt-4o-mini")),
         ai_threads=int(ai.get("threads", 4)),
+        ai_agent_host=str(ai.get("agent_host", "127.0.0.1")),
+        ai_agent_port=int(ai.get("agent_port", 11434)),
         ai_api_key_env=str(ai.get("api_key_env", "OPENAI_API_KEY")),
         config_path=config_path,
     )
@@ -84,6 +90,8 @@ def save_runtime_settings(
     ai_endpoint: str,
     ai_model: str,
     ai_threads: int,
+    ai_agent_host: str = "127.0.0.1",
+    ai_agent_port: int = 11434,
 ) -> Config:
     if operation_mode not in {"safe", "automatic"}:
         raise ValueError("operation mode must be safe or automatic")
@@ -104,6 +112,8 @@ def save_runtime_settings(
             "endpoint": ai_endpoint.strip(),
             "model": ai_model.strip(),
             "threads": ai_threads,
+            "agent_host": ai_agent_host,
+            "agent_port": ai_agent_port,
             "api_key_env": config.ai_api_key_env,
         },
     }
@@ -128,4 +138,7 @@ def save_runtime_settings(
         ai_endpoint=ai_endpoint.strip(),
         ai_model=ai_model.strip(),
         ai_threads=ai_threads,
+        ai_agent_host=ai_agent_host,
+        ai_agent_port=ai_agent_port,
     )
+

@@ -1,10 +1,10 @@
 from pathlib import Path
 from zipfile import ZipFile
 
-from borganizer.archive import inspect_zip
-from borganizer.config import Config
-from borganizer.db import Database
-from borganizer.organizer import propose
+from librarian.archive import inspect_zip
+from librarian.config import Config
+from librarian.db import Database
+from librarian.organizer import propose
 
 
 def config(tmp_path: Path) -> Config:

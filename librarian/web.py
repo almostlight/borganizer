@@ -51,7 +51,7 @@ h1, h2, p { margin: 0; } h1 { font-size: 34px; line-height: 1.1; letter-spacing:
 
 
 def _page(title: str, body: str) -> bytes:
-    document = f"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>{html.escape(title)}</title><style>{PAGE_STYLE}</style></head><body><div class='app-shell'><aside class='sidebar'><a class='brand' href='/'><span class='brand-mark'>B</span><span>Borganizer</span></a><div class='nav-label'>Library desk</div><a class='nav-link' href='#scanning'>Scanning</a><a class='nav-link' href='#review-queue'>Review queue</a><a class='nav-link' href='#configuration'>Configuration</a></aside><main>{body}</main></div><script>const selectAll=document.getElementById('select-all');const boxes=[...document.querySelectorAll('.proposal-checkbox')];if(selectAll){{selectAll.addEventListener('change',()=>boxes.forEach(box=>box.checked=selectAll.checked));boxes.forEach(box=>box.addEventListener('change',()=>{{selectAll.checked=boxes.length>0&&boxes.every(item=>item.checked);selectAll.indeterminate=boxes.some(item=>item.checked)&&!selectAll.checked;}}));}}let lastScanStatus=null;const pollScan=()=>fetch('/scan-status',{{cache:'no-store'}}).then(response=>response.json()).then(state=>{{const progressVisible=Boolean(document.querySelector('.scan-progress'));const currentFile=document.getElementById('scan-current-file');if(currentFile&&state.current_file)currentFile.textContent=state.current_file;if(state.status==='running'&&!progressVisible){{location.reload();return;}}if(lastScanStatus==='running'&&state.status!=='running'){{location.reload();return;}}lastScanStatus=state.status;setTimeout(pollScan,1000);}}).catch(()=>setTimeout(pollScan,2000));pollScan();document.querySelectorAll('.error').forEach(error=>setTimeout(()=>error.remove(),10000));</script></body></html>"
+    document = f"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>{html.escape(title)}</title><style>{PAGE_STYLE}</style></head><body><div class='app-shell'><aside class='sidebar'><a class='brand' href='/'><span class='brand-mark'>B</span><span>Librarian</span></a><div class='nav-label'>Library desk</div><a class='nav-link' href='#scanning'>Scanning</a><a class='nav-link' href='#review-queue'>Review queue</a><a class='nav-link' href='#configuration'>Configuration</a></aside><main>{body}</main></div><script>const selectAll=document.getElementById('select-all');const boxes=[...document.querySelectorAll('.proposal-checkbox')];if(selectAll){{selectAll.addEventListener('change',()=>boxes.forEach(box=>box.checked=selectAll.checked));boxes.forEach(box=>box.addEventListener('change',()=>{{selectAll.checked=boxes.length>0&&boxes.every(item=>item.checked);selectAll.indeterminate=boxes.some(item=>item.checked)&&!selectAll.checked;}}));}}let lastScanStatus=null;const pollScan=()=>fetch('/scan-status',{{cache:'no-store'}}).then(response=>response.json()).then(state=>{{const progressVisible=Boolean(document.querySelector('.scan-progress'));const currentFile=document.getElementById('scan-current-file');if(currentFile&&state.current_file)currentFile.textContent=state.current_file;if(state.status==='running'&&!progressVisible){{location.reload();return;}}if(lastScanStatus==='running'&&state.status!=='running'){{location.reload();return;}}lastScanStatus=state.status;setTimeout(pollScan,1000);}}).catch(()=>setTimeout(pollScan,2000));pollScan();document.querySelectorAll('.error').forEach(error=>setTimeout(()=>error.remove(),10000));</script></body></html>"
     return document.encode("utf-8")
 
 
@@ -69,8 +69,8 @@ def _scan_snapshot(server) -> dict[str, str | bool]:
         return dict(server.scan_state)
 
 
-class BorganizerHandler(BaseHTTPRequestHandler):
-    server_version = "borganizer-web/0.1"
+class LibrarianHandler(BaseHTTPRequestHandler):
+    server_version = "librarian-web/0.1"
 
     def _database(self) -> Database:
         return Database(self.server.config.database)  # type: ignore[attr-defined]
@@ -128,7 +128,7 @@ class BorganizerHandler(BaseHTTPRequestHandler):
         undo = ""
         if latest:
             undo = f"<form method='post' action='/undo'><input type='hidden' name='batch_id' value='{html.escape(latest)}'><button>Undo latest batch</button></form>"
-        body = f"<header><div><div class='eyebrow'>Local library desk</div><h1>Borganizer</h1><p class='muted'>Review, approve, and reverse library operations.</p></div><div class='mode'>Mode: {html.escape(config.operation_mode)}</div></header>"
+        body = f"<header><div><div class='eyebrow'>Local library desk</div><h1>Librarian</h1><p class='muted'>Review, approve, and reverse library operations.</p></div><div class='mode'>Mode: {html.escape(config.operation_mode)}</div></header>"
         if error:
             body += f"<div class='error'>Error: {html.escape(error)}</div>"
         scan = _scan_snapshot(self.server)
@@ -155,6 +155,8 @@ class BorganizerHandler(BaseHTTPRequestHandler):
         <label>AI provider<select name='ai_provider'><option {'selected' if config.ai_provider == 'ollama' else ''}>ollama</option><option {'selected' if config.ai_provider == 'openai' else ''}>openai</option></select></label>
         <label>AI model<input name='ai_model' value='{html.escape(config.ai_model, quote=True)}'></label>
         <label>Ollama threads<input type='number' min='1' max='128' name='ai_threads' value='{config.ai_threads}'></label>
+        <label>AI agent host<input name='ai_agent_host' value='{html.escape(config.ai_agent_host, quote=True)}'></label>
+        <label>AI agent port<input type='number' min='1' max='65535' name='ai_agent_port' value='{config.ai_agent_port}'></label>
         <label>AI endpoint<input name='ai_endpoint' value='{html.escape(config.ai_endpoint, quote=True)}'></label>
         <label>AI enabled<select name='ai_enabled'><option value='0' {'selected' if not config.ai_enabled else ''}>disabled</option><option value='1' {'selected' if config.ai_enabled else ''}>enabled</option></select></label>
         </div><div class='settings-actions'><button class='approve'>Save configuration</button></div></form>
@@ -162,7 +164,7 @@ class BorganizerHandler(BaseHTTPRequestHandler):
         <h2>Reset database</h2><p class='muted'>Clears organizer history and cached metadata. Files in your incoming and library directories are not changed.</p>
         <label style='max-width:320px;margin-top:12px'>Type RESET to confirm<input name='confirmation' autocomplete='off' required></label>
         <div class='settings-actions'><button class='danger' type='submit'>Reset database</button></div></form></div></details>"""
-        self._send_html(_page("Borganizer", body))
+        self._send_html(_page("Librarian", body))
 
     def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length", "0"))
@@ -199,6 +201,8 @@ class BorganizerHandler(BaseHTTPRequestHandler):
                     ai_endpoint=form["ai_endpoint"][0],
                     ai_model=form["ai_model"][0],
                     ai_threads=int(form["ai_threads"][0]),
+                    ai_agent_host=form.get("ai_agent_host", [current.ai_agent_host])[0],
+                    ai_agent_port=int(form.get("ai_agent_port", [current.ai_agent_port])[0]),
                 )
                 self.server.config = updated  # type: ignore[attr-defined]
             elif self.path == "/reset":
@@ -249,12 +253,12 @@ class BorganizerHandler(BaseHTTPRequestHandler):
 
 
 def serve(config: Config, host: str = "127.0.0.1", port: int = 8765) -> None:
-    server = ThreadingHTTPServer((host, port), BorganizerHandler)
+    server = ThreadingHTTPServer((host, port), LibrarianHandler)
     server.config = config  # type: ignore[attr-defined]
     server.scan_lock = Lock()  # type: ignore[attr-defined]
     server.scan_state = {"status": "idle", "message": "", "current_file": ""}  # type: ignore[attr-defined]
     server.scan_cancel_event = Event()  # type: ignore[attr-defined]
-    print(f"Borganizer web UI: http://{host}:{port}")
+    print(f"Librarian web UI: http://{host}:{port}")
     try:
         server.serve_forever()
     finally:

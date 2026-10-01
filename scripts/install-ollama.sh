@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-MODEL="${BORGANIZER_OLLAMA_MODEL:-qwen3:8b}"
-QUANTIZATION="${BORGANIZER_OLLAMA_QUANTIZATION:-auto}"
-CONFIG_PATH="${BORGANIZER_CONFIG:-/opt/borganizer/config.yaml}"
-SERVICE_USER="${BORGANIZER_USER:-borganizer}"
+MODEL="${LIBRARIAN_OLLAMA_MODEL:-qwen3:8b}"
+QUANTIZATION="${LIBRARIAN_OLLAMA_QUANTIZATION:-auto}"
+CONFIG_PATH="${LIBRARIAN_CONFIG:-/opt/librarian/config.yaml}"
+SERVICE_USER="${LIBRARIAN_USER:-librarian}"
 DRY_RUN=no
 
 usage() {
     cat <<'EOF'
 Usage: sudo ./scripts/install-ollama.sh [options]
 
-Install Ollama, choose a Qwen3 8B quantization from available RAM, and enable it in borganizer's YAML config.
+Install Ollama, choose a Qwen3 8B quantization from available RAM, and enable it in librarian's YAML config.
 
 Options:
-  --config PATH        Borganizer config (default: /opt/borganizer/config.yaml)
-  --service-user USER  Borganizer service account (default: borganizer)
+  --config PATH        Librarian config (default: /opt/librarian/config.yaml)
+  --service-user USER  Librarian service account (default: librarian)
   --model NAME         Ollama model (default: qwen3:8b)
     --quantization MODE   auto, q4_k_m, or q8_0 (default: auto)
     --dry-run             Show the selection without installing or downloading
@@ -118,5 +118,5 @@ with path.open("w", encoding="utf-8") as stream:
 PY
 chown "$SERVICE_USER:$SERVICE_USER" "$CONFIG_PATH"
 chmod 0640 "$CONFIG_PATH"
-systemctl restart borganizer.timer 2>/dev/null || true
-printf 'Ollama is ready with %s (%s); borganizer AI is enabled with 4 threads.\n' "$MODEL" "$QUANTIZATION"
+systemctl restart librarian.timer 2>/dev/null || true
+printf 'Ollama is ready with %s (%s); librarian AI is enabled with 4 threads.\n' "$MODEL" "$QUANTIZATION"

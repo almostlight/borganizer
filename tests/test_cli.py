@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from borganizer.cli import cmd_approve, cmd_approve_all_high_confidence, cmd_review, cmd_run
-from borganizer.config import Config
-from borganizer.db import Database
-from borganizer.models import Proposal
+from librarian.cli import cmd_approve, cmd_approve_all_high_confidence, cmd_review, cmd_run
+from librarian.config import Config
+from librarian.db import Database
+from librarian.models import Proposal
 
 
 def config(tmp_path: Path) -> Config:

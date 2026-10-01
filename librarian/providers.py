@@ -39,7 +39,7 @@ class OpenLibraryProvider(MetadataProvider):
         query = f"?{urllib.parse.urlencode(params)}" if params else ""
         request = urllib.request.Request(
             f"https://openlibrary.org{path}{query}",
-            headers={"User-Agent": "borganizer/0.1 (+metadata lookup)"},
+            headers={"User-Agent": "librarian/0.1 (+metadata lookup)"},
         )
         with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
             return json.load(response)

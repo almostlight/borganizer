@@ -2,12 +2,12 @@ from pathlib import Path
 from threading import Event, Thread
 from urllib.request import Request, urlopen
 
-from borganizer.config import Config
-from borganizer.config import load_config
-from borganizer.db import Database
-from borganizer.models import Proposal
-from borganizer.web import BorganizerHandler
-import borganizer.web as web_module
+from librarian.config import Config
+from librarian.config import load_config
+from librarian.db import Database
+from librarian.models import Proposal
+from librarian.web import LibrarianHandler
+import librarian.web as web_module
 from http.server import ThreadingHTTPServer
 
 
@@ -44,14 +44,14 @@ def test_web_dashboard_renders_and_approves(tmp_path):
     database.conn.execute("UPDATE proposals SET sha256=? WHERE id=?", ("".join(__import__("hashlib").sha256(b"book").hexdigest()), proposal_id))
     database.conn.commit()
 
-    server = ThreadingHTTPServer(("127.0.0.1", 0), BorganizerHandler)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), LibrarianHandler)
     server.config = config(tmp_path)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
         url = f"http://127.0.0.1:{server.server_port}"
         page = urlopen(url).read().decode()
-        assert "Borganizer" in page
+        assert "Librarian" in page
         assert "The Hobbit" in page
         urlopen(Request(f"{url}/approve", data=f"id={proposal_id}".encode(), method="POST"))
         assert destination.read_bytes() == b"book"
@@ -72,7 +72,7 @@ ai:
   model: llama3.2:3b
   threads: 4
 """)
-    server = ThreadingHTTPServer(("127.0.0.1", 0), BorganizerHandler)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), LibrarianHandler)
     server.config = load_config(config_path)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -100,7 +100,7 @@ ai:
 
 
 def test_web_settings_error_is_reported(tmp_path):
-    server = ThreadingHTTPServer(("127.0.0.1", 0), BorganizerHandler)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), LibrarianHandler)
     server.config = config(tmp_path)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -125,7 +125,7 @@ def test_web_database_reset_requires_confirmation_and_keeps_files(tmp_path):
         series=None, series_number=None,
     ))
 
-    server = ThreadingHTTPServer(("127.0.0.1", 0), BorganizerHandler)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), LibrarianHandler)
     server.config = config(tmp_path)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -153,7 +153,7 @@ def test_web_bulk_reject_selected_proposals(tmp_path):
             series=None, series_number=None,
         ))
 
-    server = ThreadingHTTPServer(("127.0.0.1", 0), BorganizerHandler)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), LibrarianHandler)
     server.config = config(tmp_path)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -181,7 +181,7 @@ def test_web_scan_reports_progress_while_running(tmp_path, monkeypatch):
         return []
 
     monkeypatch.setattr(web_module, "propose", slow_scan)
-    server = ThreadingHTTPServer(("127.0.0.1", 0), BorganizerHandler)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), LibrarianHandler)
     server.config = config(tmp_path)
     server.scan_lock = __import__("threading").Lock()
     server.scan_state = {"status": "idle", "message": ""}

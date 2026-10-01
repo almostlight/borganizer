@@ -149,7 +149,7 @@ def cmd_inspect(path: str) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(prog="borganizer")
+    parser = argparse.ArgumentParser(prog="librarian")
     parser.add_argument("--config", help="Path to config YAML")
     sub = parser.add_subparsers(dest="command", required=True)
 

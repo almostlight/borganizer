@@ -1,0 +1,12 @@
+[Unit]
+Description=Audiobookshelf Librarian
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=librarian
+Group=librarian
+WorkingDirectory=/opt/librarian
+Environment=LIBRARIAN_CONFIG=/opt/librarian/config.yaml
+ExecStart=/opt/librarian/venv/bin/librarian run

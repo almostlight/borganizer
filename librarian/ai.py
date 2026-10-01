@@ -13,7 +13,7 @@ from .models import BookMetadata
 @dataclass(frozen=True)
 class AIResolution:
     book: str
-    author: str
+    author: str | None
     series: str | None
     series_number: float | None
     confidence: float
@@ -36,20 +36,20 @@ class AIResolver(ABC):
         raise NotImplementedError
 
 
-def _resolution(value: Any) -> AIResolution:
+def _resolution(value: Any, *, require_author: bool = True) -> AIResolution:
     if not isinstance(value, dict):
         raise ValueError("AI response must be an object")
     book = value.get("book")
     author = value.get("author")
     confidence = value.get("confidence")
-    if not isinstance(book, str) or not book.strip() or not isinstance(author, str) or not author.strip():
+    if not isinstance(book, str) or not book.strip() or (require_author and (not isinstance(author, str) or not author.strip())):
         raise ValueError("AI response requires book and author strings")
     if not isinstance(confidence, (int, float)) or not 0 <= float(confidence) <= 1:
         raise ValueError("AI confidence must be between 0 and 1")
     series_number = value.get("series_number")
     if series_number is not None and not isinstance(series_number, (int, float)):
         raise ValueError("AI series_number must be numeric")
-    return AIResolution(book.strip(), author.strip(), value.get("series"), float(series_number) if series_number is not None else None, float(confidence))
+    return AIResolution(book.strip(), author.strip() if isinstance(author, str) else None, value.get("series"), float(series_number) if series_number is not None else None, float(confidence))
 
 
 class OpenAIResolver(AIResolver):
@@ -97,8 +97,12 @@ class OllamaResolver(AIResolver):
         prompt = "\n".join(
             value for value in (
                 f"filename: {filename}" if filename else "",
+            f"media_type: {embedded.media_type}" if embedded.media_type else "",
                 f"title: {embedded.title}" if embedded.title else "",
                 f"author: {embedded.author}" if embedded.author else "",
+            f"series: {embedded.series}" if embedded.series else "",
+            f"season: {embedded.season_number}" if embedded.season_number is not None else "",
+            f"episode: {embedded.episode_number}" if embedded.episode_number is not None else "",
                 f"candidates: {', '.join(candidate_books)}" if candidate_books else "",
             )
         )
@@ -109,7 +113,7 @@ class OllamaResolver(AIResolver):
             "format": "json",
             "keep_alive": "30m",
             "messages": [
-                {"role": "system", "content": "Return only JSON: book, author, series, series_number, confidence."},
+                {"role": "system", "content": "Return only JSON: book, author, series, series_number, confidence. For video, book is the movie or episode title and author may be null."},
                 {"role": "user", "content": prompt},
             ],
             "options": {"temperature": 0, "num_thread": self.threads, "num_predict": 64, "num_ctx": 1024},
@@ -118,7 +122,7 @@ class OllamaResolver(AIResolver):
         with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
             payload = json.load(response)
         content = payload["message"]["content"]
-        return _resolution(json.loads(content))
+        return _resolution(json.loads(content), require_author=embedded.media_type != "video")
 
 
 def build_ai_resolver(config) -> AIResolver | None:

@@ -10,6 +10,7 @@ from .models import BookMetadata
 
 AUDIO_EXTS = {".mp3", ".m4a", ".m4b", ".flac", ".ogg", ".opus"}
 EBOOK_EXTS = {".epub", ".pdf", ".azw3", ".mobi"}
+VIDEO_EXTS = {".mkv", ".mp4", ".m4v", ".avi", ".mov", ".webm"}
 
 
 def _first(value):
@@ -34,7 +35,24 @@ def parse_filename(path: Path) -> BookMetadata:
     name = re.sub(r"\s+(?:unabridged|abridged|unrated|complete|dramatized)$", "", name, flags=re.IGNORECASE)
     name = re.sub(r"[._ -]+(?:part|track|cd|disc|disk)\s*\d+$", "", name, flags=re.IGNORECASE)
     # Conservative parsing of common series markers: "Series 01", "Series #1", "01 - Title".
-    result = BookMetadata(media_type="audiobook" if path.suffix.lower() in AUDIO_EXTS else "ebook", source="filename")
+    media_type = "audiobook" if path.suffix.lower() in AUDIO_EXTS else "ebook"
+    if path.suffix.lower() in VIDEO_EXTS:
+        media_type = "video"
+    result = BookMetadata(media_type=media_type, source="filename")
+
+    episode = re.match(r"^(?P<show>.+?)\s*[._ -]+S(?P<season>\d{1,2})E(?P<episode>\d{1,3})(?:\s*[._ -]+(?P<title>.+))?$", name, re.IGNORECASE)
+    if episode:
+        result.series = episode.group("show").strip()
+        result.title = episode.group("title") or f"Episode {int(episode.group('episode')):02d}"
+        result.season_number = int(episode.group("season"))
+        result.episode_number = int(episode.group("episode"))
+        return result
+
+    movie = re.match(r"^(?P<title>.+?)\s*\((?P<year>(?:19|20)\d{2})\)$", name)
+    if movie and media_type == "video":
+        result.title = movie.group("title").strip()
+        result.year = int(movie.group("year"))
+        return result
 
     patterns = [
         rf"^(?P<series>.+?)\s*[-–—#]\s*(?P<position>{SERIES_POSITION_PATTERN})\s*[-–—]\s*(?P<title>.+)$",

@@ -1,5 +1,5 @@
-from borganizer.matching import classify_match
-from borganizer.models import BookMetadata
+from librarian.matching import classify_match
+from librarian.models import BookMetadata
 
 
 def metadata(title, author=None, narrator=None, isbn=None):

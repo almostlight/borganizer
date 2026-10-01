@@ -1,5 +1,6 @@
 __pycache__/
 *.py[cod]
+librarian.egg-info/
 borganizer.egg-info/
 .venv/
 venv/

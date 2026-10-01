@@ -2,10 +2,9 @@
 Description=Scan incoming Audiobookshelf books
 
 [Timer]
-OnBootSec=5min
-OnUnitActiveSec=10min
+OnCalendar=*-*-* 04:00:00
 Persistent=true
-Unit=borganizer.service
+Unit=librarian.service
 
 [Install]
 WantedBy=timers.target

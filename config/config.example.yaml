@@ -1,12 +1,13 @@
 incoming_dir: /mnt/media/incoming
 library_dir: /mnt/media/books
-database: /var/lib/borganizer/library.db
+database: /var/lib/librarian/library.db
 operation_mode: safe
 
 scan:
   extensions:
     audiobook: [".mp3", ".m4a", ".m4b", ".flac", ".ogg", ".opus"]
     ebook: [".epub", ".pdf", ".azw3", ".mobi"]
+    video: [".mkv", ".mp4", ".m4v", ".avi", ".mov", ".webm"]
   ignore_hidden: true
   min_stable_age_seconds: 30
 

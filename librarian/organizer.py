@@ -31,6 +31,8 @@ def classify_extension(path: Path, config: Config) -> str | None:
         return "audiobook"
     if ext in config.ebook_extensions:
         return "ebook"
+    if ext in config.video_extensions:
+        return "video"
     return None
 
 
@@ -39,6 +41,13 @@ def _norm(value: str | None) -> str:
 
 
 def calculate_confidence(meta: BookMetadata) -> float:
+    if meta.media_type == "video":
+        score = 0.50 if meta.title else 0.0
+        score += 0.20 if meta.series else 0.0
+        score += 0.15 if meta.season_number is not None else 0.0
+        score += 0.10 if meta.episode_number is not None else 0.0
+        score += 0.05 if meta.year is not None else 0.0
+        return min(score, 0.99)
     score = 0.30 if meta.title else 0.0
     score += 0.30 if meta.author else 0.0
     score += 0.20 if meta.series else 0.0
@@ -106,6 +115,8 @@ def _infer_component_group(path: Path, incoming_dir: Path) -> str:
 
 
 def build_destination(candidate: FileCandidate, config: Config) -> Path:
+    if candidate.media_type == "video":
+        return build_video_destination(candidate, config)
     book_root = build_book_root(candidate, config)
     title = clean_component(candidate.metadata.title or candidate.path.stem, config.invalid_replacement)
     return book_root / f"{title}{candidate.path.suffix.lower()}"
@@ -123,6 +134,19 @@ def build_book_root(candidate: FileCandidate, config: Config) -> Path:
         return config.library_dir / author / series / book_dir
 
     return config.library_dir / author / title
+
+
+def build_video_destination(candidate: FileCandidate, config: Config) -> Path:
+    meta = candidate.metadata
+    extension = candidate.path.suffix.lower()
+    if meta.season_number is not None and meta.episode_number is not None and meta.series:
+        show = clean_component(meta.series, config.invalid_replacement)
+        episode_title = clean_component(meta.title or f"Episode {meta.episode_number:02d}", config.invalid_replacement)
+        filename = f"{show} - S{meta.season_number:02d}E{meta.episode_number:02d} - {episode_title}{extension}"
+        return config.library_dir / "TV Shows" / show / f"Season {meta.season_number:02d}" / filename
+    title = clean_component(meta.title or candidate.path.stem, config.invalid_replacement)
+    folder = f"{title} ({meta.year})" if meta.year else title
+    return config.library_dir / "Movies" / folder / f"{folder}{extension}"
 
 
 def find_existing_match(candidate: FileCandidate, config: Config) -> tuple[Path, MatchResult] | None:
@@ -185,6 +209,8 @@ def build_edition_destination(
 ) -> Path:
     title = clean_component(candidate.metadata.title or candidate.path.stem, config.invalid_replacement)
     suffix = candidate.path.suffix.lower()
+    if candidate.media_type == "video":
+        return build_video_destination(candidate, config)
     if candidate.media_type != "audiobook":
         return book_root / f"{title}{suffix}"
 
@@ -248,7 +274,7 @@ def _lookup_ai(candidate: FileCandidate, resolver: AIResolver, config: Config, p
         raise ValueError("AI returned an implausible book title")
     if result.series and not re.search(r"[A-Za-z]{2,}", result.series):
         raise ValueError("AI returned an implausible series")
-    if provider:
+    if provider and candidate.metadata.media_type != "video":
         matches = provider.search(result.metadata())
         if not any(
             normalize_text(match.metadata.title) == normalize_text(result.book)

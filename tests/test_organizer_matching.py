@@ -1,11 +1,11 @@
 from pathlib import Path
 
-from borganizer.config import Config
-from borganizer.db import Database
-from borganizer.models import BookMetadata, FileCandidate
-from borganizer.organizer import propose
-from borganizer.providers import MetadataProvider, MetadataSearchResult
-from borganizer.ai import AIResolver, AIResolution
+from librarian.config import Config
+from librarian.db import Database
+from librarian.models import BookMetadata, FileCandidate
+from librarian.organizer import propose
+from librarian.providers import MetadataProvider, MetadataSearchResult
+from librarian.ai import AIResolver, AIResolution
 
 
 class FakeMetadataProvider(MetadataProvider):
@@ -138,7 +138,7 @@ def test_ai_resolver_skips_complete_embedded_metadata(tmp_path, monkeypatch):
         def resolve(self, **kwargs):
             raise AssertionError("AI should not run for complete embedded metadata")
 
-    monkeypatch.setattr("borganizer.organizer.extract_metadata", tagged_metadata)
+    monkeypatch.setattr("librarian.organizer.extract_metadata", tagged_metadata)
     database = Database(tmp_path / "library.db")
     proposals = propose(config(incoming, library, tmp_path / "library.db", ai_enabled=True), database, ai_resolver=FailingAIResolver())
 
@@ -232,7 +232,7 @@ def test_duplicate_book_destinations_preserve_track_names(tmp_path, monkeypatch)
     def same_album(path, media_type):
         return BookMetadata(title="The Hobbit", author="Tolkien", media_type=media_type, source="tags")
 
-    monkeypatch.setattr("borganizer.organizer.extract_metadata", same_album)
+    monkeypatch.setattr("librarian.organizer.extract_metadata", same_album)
     database = Database(tmp_path / "library.db")
     proposals = propose(config(incoming, library, tmp_path / "library.db"), database)
 
@@ -248,7 +248,7 @@ def test_single_audiobook_edition_stays_flat(tmp_path, monkeypatch):
     def tagged(path, media_type):
         return BookMetadata(title="The Hobbit", author="Tolkien", narrator="Andy Serkis", media_type=media_type, source="tags")
 
-    monkeypatch.setattr("borganizer.organizer.extract_metadata", tagged)
+    monkeypatch.setattr("librarian.organizer.extract_metadata", tagged)
     database = Database(tmp_path / "library.db")
     proposals = propose(config(incoming, library, tmp_path / "library.db"), database)
 
@@ -266,7 +266,7 @@ def test_multiple_audiobook_narrators_use_conditional_hierarchy(tmp_path, monkey
         narrator = "Andy Serkis" if "andy" in path.stem else "Rob Inglis"
         return BookMetadata(title="The Hobbit", author="Tolkien", narrator=narrator, media_type=media_type, source="tags")
 
-    monkeypatch.setattr("borganizer.organizer.extract_metadata", tagged)
+    monkeypatch.setattr("librarian.organizer.extract_metadata", tagged)
     database = Database(tmp_path / "library.db")
     proposals = propose(config(incoming, library, tmp_path / "library.db"), database)
 
@@ -287,7 +287,7 @@ def test_ebook_and_single_audiobook_share_flat_book_directory(tmp_path, monkeypa
     def tagged(path, media_type):
         return BookMetadata(title="The Hobbit", author="Tolkien", narrator="Andy Serkis" if media_type == "audiobook" else None, media_type=media_type, source="tags")
 
-    monkeypatch.setattr("borganizer.organizer.extract_metadata", tagged)
+    monkeypatch.setattr("librarian.organizer.extract_metadata", tagged)
     database = Database(tmp_path / "library.db")
     proposals = propose(config(incoming, library, tmp_path / "library.db"), database)
 

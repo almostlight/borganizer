@@ -1,31 +1,31 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-APP_ROOT="${BORGANIZER_APP_ROOT:-/opt/borganizer}"
-STATE_ROOT="${BORGANIZER_STATE_ROOT:-/var/lib/borganizer}"
-SERVICE_USER="${BORGANIZER_USER:-borganizer}"
-INCOMING_DIR="${BORGANIZER_INCOMING_DIR:-/mnt/media/incoming}"
-LIBRARY_DIR="${BORGANIZER_LIBRARY_DIR:-/mnt/media/books}"
-CONFIG_PATH="${BORGANIZER_CONFIG:-$APP_ROOT/config.yaml}"
-WITH_OLLAMA="${BORGANIZER_WITH_OLLAMA:-auto}"
+APP_ROOT="${LIBRARIAN_APP_ROOT:-/opt/librarian}"
+STATE_ROOT="${LIBRARIAN_STATE_ROOT:-/var/lib/librarian}"
+SERVICE_USER="${LIBRARIAN_USER:-librarian}"
+INCOMING_DIR="${LIBRARIAN_INCOMING_DIR:-/mnt/media/incoming}"
+LIBRARY_DIR="${LIBRARIAN_LIBRARY_DIR:-/mnt/media/books}"
+CONFIG_PATH="${LIBRARIAN_CONFIG:-$APP_ROOT/config.yaml}"
+WITH_OLLAMA="${LIBRARIAN_WITH_OLLAMA:-auto}"
 
 usage() {
     cat <<'EOF'
 Usage: sudo ./scripts/install.sh [options]
 
-Install borganizer and its systemd timer on Debian or Fedora.
+Install librarian and its systemd timer on Debian or Fedora.
 
 Options:
   --incoming DIR    Incoming media directory (default: /mnt/media/incoming)
   --library DIR     Organized library directory (default: /mnt/media/books)
-  --with-ollama     Install Ollama and pull qwen3:8b after borganizer setup
+  --with-ollama     Install Ollama and pull qwen3:8b after librarian setup
   --without-ollama  Skip the Ollama offer
   --yes              Accept the Ollama offer without prompting
   -h, --help         Show this help
 
-Environment overrides: BORGANIZER_APP_ROOT, BORGANIZER_STATE_ROOT,
-BORGANIZER_USER, BORGANIZER_CONFIG, BORGANIZER_INCOMING_DIR,
-BORGANIZER_LIBRARY_DIR, BORGANIZER_WITH_OLLAMA.
+Environment overrides: LIBRARIAN_APP_ROOT, LIBRARIAN_STATE_ROOT,
+LIBRARIAN_USER, LIBRARIAN_CONFIG, LIBRARIAN_INCOMING_DIR,
+LIBRARIAN_LIBRARY_DIR, LIBRARIAN_WITH_OLLAMA.
 EOF
 }
 
@@ -72,7 +72,7 @@ create_service_user() {
 
 install_application() {
     install -d -m 0755 "$APP_ROOT" "$STATE_ROOT" "$INCOMING_DIR" "$LIBRARY_DIR"
-    cp -a "$SOURCE_ROOT/borganizer" "$SOURCE_ROOT/pyproject.toml" "$APP_ROOT/"
+    cp -a "$SOURCE_ROOT/librarian" "$SOURCE_ROOT/pyproject.toml" "$APP_ROOT/"
     cp "$SOURCE_ROOT/config/config.example.yaml" "$APP_ROOT/config.example.yaml"
 
     python3 -m venv "$APP_ROOT/venv"
@@ -108,10 +108,10 @@ PY
 }
 
 install_systemd_units() {
-    install -m 0644 "$SOURCE_ROOT/systemd/borganizer.service" /etc/systemd/system/borganizer.service
-    install -m 0644 "$SOURCE_ROOT/systemd/borganizer.timer" /etc/systemd/system/borganizer.timer
+    install -m 0644 "$SOURCE_ROOT/systemd/librarian.service" /etc/systemd/system/librarian.service
+    install -m 0644 "$SOURCE_ROOT/systemd/librarian.timer" /etc/systemd/system/librarian.timer
     systemctl daemon-reload
-    systemctl enable --now borganizer.timer
+    systemctl enable --now librarian.timer
 }
 
 install_packages
@@ -119,10 +119,10 @@ create_service_user
 install_application
 install_systemd_units
 
-printf '\nBorganizer installed.\n'
+printf '\nLibrarian installed.\n'
 printf 'Config: %s\n' "$CONFIG_PATH"
-printf 'Timer:  systemctl status borganizer.timer\n'
-printf 'Logs:   journalctl -u borganizer.service\n'
+printf 'Timer:  systemctl status librarian.timer\n'
+printf 'Logs:   journalctl -u librarian.service\n'
 
 if [[ "$WITH_OLLAMA" == auto ]]; then
     read -r -p "Install Ollama and pull qwen3:8b now? [y/N] " answer || answer=n

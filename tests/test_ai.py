@@ -4,8 +4,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from borganizer.ai import OllamaResolver, _resolution
-from borganizer.models import BookMetadata
+from librarian.ai import OllamaResolver, _resolution
+from librarian.models import BookMetadata
 
 
 def test_ai_response_is_strictly_validated():
@@ -17,6 +17,13 @@ def test_ai_response_is_strictly_validated():
 def test_ai_response_rejects_filesystem_instead_of_metadata():
     with pytest.raises(ValueError):
         _resolution({"move": "/tmp/file", "confidence": 1.0})
+
+
+def test_ai_video_response_allows_missing_author():
+    result = _resolution({"book": "Arrival", "author": None, "confidence": 0.91}, require_author=False)
+
+    assert result.book == "Arrival"
+    assert result.author is None
 
 
 def test_ollama_resolver_uses_local_chat_contract():

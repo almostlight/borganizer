@@ -1,6 +1,6 @@
-from borganizer.db import Database
-from borganizer.models import BookMetadata
-from borganizer.providers import CachedMetadataProvider, MetadataProvider, MetadataSearchResult
+from librarian.db import Database
+from librarian.models import BookMetadata
+from librarian.providers import CachedMetadataProvider, MetadataProvider, MetadataSearchResult
 
 
 class FakeProvider(MetadataProvider):

@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from borganizer.config import Config
-from borganizer.metadata import parse_filename
-from borganizer.models import BookMetadata, FileCandidate
-from borganizer.organizer import build_destination
+from librarian.config import Config
+from librarian.metadata import parse_filename
+from librarian.models import BookMetadata, FileCandidate
+from librarian.organizer import build_destination
 
 
 def config(tmp_path: Path) -> Config:

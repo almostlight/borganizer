@@ -1,6 +1,6 @@
-# Audiobookshelf Borganizer
+# Librarian
 
-Safe, metadata-aware organizer for audiobook + ebook libraries.
+Safe, metadata-aware organizer for audiobook, ebook, and Jellyfin video libraries.
 
 ## Design
 
@@ -24,12 +24,48 @@ Series positions are stored separately from their directory rendering. Numeric p
 
 When enabled, the AI resolver receives only filename, embedded metadata, and candidate book names. It returns validated book metadata; Python converts that metadata into a destination path and the filesystem layer performs the move. The AI cannot issue filesystem commands. Multi-file books retain unique source track names inside the shared book directory. Ollama is supported as a local provider; OpenAI remains available when a hosted model is preferred.
 
+Video files use Jellyfin-friendly paths and are sorted by media type:
+
+```text
+Movies/
+  Arrival (2016)/
+    Arrival (2016).mkv
+TV Shows/
+  The Expanse/
+    Season 01/
+      The Expanse - S01E03 - Remember the Cant.mkv
+```
+
+The sorting rules are:
+
+- `.mkv`, `.mp4`, `.m4v`, `.avi`, `.mov`, and `.webm` are recognized as video.
+- A movie filename ending in `(YYYY)` is sorted into `Movies/Title (YYYY)/`.
+- A filename containing `S01E03` is treated as a TV episode and sorted into
+  `TV Shows/Series Name/Season 01/`.
+- TV episode names are normalized to
+  `Series Name - S01E03 - Episode Title.ext`.
+- The original extension is preserved in lowercase.
+- Files without a recognized episode marker are treated as movies. If no year
+  is present, the movie folder uses the title alone.
+- Sorting is proposal-based in safe mode. No video is moved until it is
+  approved, and existing destinations are never overwritten.
+
+Recommended input names are:
+
+```text
+Arrival (2016).mkv
+The Expanse - S01E03 - Remember the Cant.mkv
+```
+
+Jellyfin should be pointed at the resulting `Movies` and `TV Shows` folders.
+
 ## Install on Debian
 
 The automated installer supports Debian/Ubuntu and Fedora. Run it from a
-checked-out copy of this repository as root. It creates the `borganizer`
-service account, installs the project in `/opt/borganizer/venv`, creates the
-configured directories, and enables the ten-minute systemd timer:
+checked-out copy of this repository as root. It creates the `librarian`
+service account, installs the project in `/opt/librarian/venv`, creates the
+configured directories, and enables the daily systemd timer scheduled for
+04:00 local time:
 
 ```bash
 sudo ./scripts/install.sh
@@ -57,7 +93,7 @@ sudo ./scripts/install-ollama.sh
 
 It installs Ollama using the official installer, selects a Qwen3 8B
 quantization from available RAM, pulls it, and enables the Ollama provider with
-four threads in `/opt/borganizer/config.yaml`. With `auto`, at least 12 GiB
+four threads in `/opt/librarian/config.yaml`. With `auto`, at least 12 GiB
 available RAM selects `qwen3:8b-q8_0`; at least 6 GiB selects the default
 `qwen3:8b` Q4_K_M package. You can override the choice explicitly:
 
@@ -70,18 +106,18 @@ sudo ./scripts/install-ollama.sh --quantization q8_0
 sudo apt update
 sudo apt install -y python3 python3-venv python3-pip ffmpeg sqlite3 git
 
-sudo useradd --system --home /var/lib/borganizer --create-home --shell /usr/sbin/nologin borganizer || true
-sudo mkdir -p /opt/borganizer /var/lib/borganizer /mnt/media/incoming /mnt/media/books
-sudo chown -R borganizer:borganizer /opt/borganizer /var/lib/borganizer /mnt/media/incoming /mnt/media/books
+sudo useradd --system --home /var/lib/librarian --create-home --shell /usr/sbin/nologin librarian || true
+sudo mkdir -p /opt/librarian /var/lib/librarian /mnt/media/incoming /mnt/media/books
+sudo chown -R librarian:librarian /opt/librarian /var/lib/librarian /mnt/media/incoming /mnt/media/books
 
-sudo -u borganizer python3 -m venv /opt/borganizer/venv
-sudo -u borganizer /opt/borganizer/venv/bin/pip install --upgrade pip
-sudo -u borganizer /opt/borganizer/venv/bin/pip install /opt/borganizer
-sudo cp config/config.example.yaml /opt/borganizer/config.yaml
-sudo chown borganizer:borganizer /opt/borganizer/config.yaml
+sudo -u librarian python3 -m venv /opt/librarian/venv
+sudo -u librarian /opt/librarian/venv/bin/pip install --upgrade pip
+sudo -u librarian /opt/librarian/venv/bin/pip install /opt/librarian
+sudo cp config/config.example.yaml /opt/librarian/config.yaml
+sudo chown librarian:librarian /opt/librarian/config.yaml
 ```
 
-Adjust `incoming_dir`, `library_dir`, and `database` in `/opt/borganizer/config.yaml` if necessary.
+Adjust `incoming_dir`, `library_dir`, and `database` in `/opt/librarian/config.yaml` if necessary.
 
 ## First scan
 
@@ -90,33 +126,219 @@ The default `operation_mode: safe` only creates proposals. Set it to `automatic`
 Use the service account for all operations:
 
 ```bash
-sudo -u borganizer BORGANIZER_CONFIG=/opt/borganizer/config.yaml \
-  /opt/borganizer/venv/bin/borganizer scan
+sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
+  /opt/librarian/venv/bin/librarian scan
 ```
 
 For a one-shot run using the configured mode:
 
 ```bash
-sudo -u borganizer BORGANIZER_CONFIG=/opt/borganizer/config.yaml \
-  /opt/borganizer/venv/bin/borganizer run
+sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
+  /opt/librarian/venv/bin/librarian run
 ```
 
 Then inspect proposals:
 
 ```bash
-sudo -u borganizer BORGANIZER_CONFIG=/opt/borganizer/config.yaml \
-  /opt/borganizer/venv/bin/borganizer review
+sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
+  /opt/librarian/venv/bin/librarian review
 ```
 
 Nothing has moved yet.
+
+## Usage guide
+
+### 1. Check configuration
+
+Before the first run, confirm the three paths in the active configuration:
+
+```bash
+sudo -u librarian /opt/librarian/venv/bin/librarian \
+  --config /opt/librarian/config.yaml status
+```
+
+The service account must be able to read the incoming directory and write the
+database and library directory. Keep the incoming and library directories
+separate. For a home-directory library, grant the `librarian` account a
+targeted ACL rather than making the whole home directory public.
+
+### 2. Scan safely
+
+`scan` creates proposals and prints them without moving files:
+
+```bash
+sudo -u librarian /opt/librarian/venv/bin/librarian \
+  --config /opt/librarian/config.yaml scan
+```
+
+`run` scans and then follows `operation_mode`. With the default `safe` mode it
+only queues proposals:
+
+```bash
+sudo -u librarian /opt/librarian/venv/bin/librarian \
+  --config /opt/librarian/config.yaml run
+```
+
+Each proposal includes confidence, source and destination paths, matching
+evidence, AI/metadata notes, and the per-item processing time.
+
+### 3. Review proposals
+
+Review from the terminal:
+
+```bash
+sudo -u librarian /opt/librarian/venv/bin/librarian \
+  --config /opt/librarian/config.yaml review
+```
+
+Or start the localhost dashboard:
+
+```bash
+sudo -u librarian /opt/librarian/venv/bin/librarian \
+  --config /opt/librarian/config.yaml web --host 127.0.0.1 --port 8765
+```
+
+Open <http://127.0.0.1:8765>. The dashboard supports individual and bulk
+approval/rejection, a select-all control, scan progress with the current file,
+stopping an active scan, undoing the latest batch, configuration editing, and
+database reset. Database reset requires typing `RESET` and never deletes media
+files.
+
+### 4. Apply selected work
+
+Approve and apply selected proposal IDs:
+
+```bash
+sudo -u librarian /opt/librarian/venv/bin/librarian \
+  --config /opt/librarian/config.yaml approve 12 13
+```
+
+Reject proposals without moving files:
+
+```bash
+sudo -u librarian /opt/librarian/venv/bin/librarian \
+  --config /opt/librarian/config.yaml reject 14 15
+```
+
+Apply already-approved or high-confidence work:
+
+```bash
+sudo -u librarian /opt/librarian/venv/bin/librarian \
+  --config /opt/librarian/config.yaml apply 12 13
+
+sudo -u librarian /opt/librarian/venv/bin/librarian \
+  --config /opt/librarian/config.yaml apply --auto
+```
+
+The filesystem layer verifies hashes, refuses to overwrite existing files,
+records every operation in SQLite, and supports undo.
+
+### 5. Undo safely
+
+Undo the newest completed batch:
+
+```bash
+sudo -u librarian /opt/librarian/venv/bin/librarian \
+  --config /opt/librarian/config.yaml undo
+```
+
+Undo a specific batch ID:
+
+```bash
+sudo -u librarian /opt/librarian/venv/bin/librarian \
+  --config /opt/librarian/config.yaml undo BATCH_ID
+```
+
+Use `status` to see pending, applied, rejected, undone, duplicate, and conflict
+counts before and after an operation.
+
+### 6. Inspect archives without extracting
+
+ZIP archives are never extracted during a scan. Inspect their contents
+explicitly:
+
+```bash
+librarian inspect /path/to/book.zip
+```
+
+### 7. Understand video destinations
+
+Use filenames such as:
+
+```text
+Arrival (2016).mkv
+The Expanse - S01E03 - Remember the Cant.mkv
+```
+
+They become:
+
+```text
+Movies/Arrival (2016)/Arrival (2016).mkv
+TV Shows/The Expanse/Season 01/The Expanse - S01E03 - Remember the Cant.mkv
+```
+
+These layouts are designed for Jellyfin discovery. Keep movie and TV input
+names descriptive; `SxxExx` is the signal used to identify TV episodes.
+
+### 8. Run unattended at 04:00
+
+The installed timer starts `librarian.service` every day at 04:00 local time.
+It uses the configured `operation_mode`:
+
+```bash
+sudo systemctl status librarian.timer
+sudo systemctl list-timers librarian.timer
+sudo journalctl -u librarian.service
+sudo systemctl start librarian.service  # run immediately, if needed
+```
+
+Keep safe mode enabled until the review queue is trusted. Automatic mode only
+applies proposals at or above `safety.auto_apply_threshold`; lower-confidence
+items remain in the queue.
+
+### 9. AI behavior and performance
+
+AI is a fallback for incomplete or low-confidence metadata. Fully tagged files
+with strong metadata do not call the model. The local Ollama request contains
+only the media type, filename, embedded fields, and a small candidate list;
+thinking is disabled and JSON output is bounded. AI results are validated and
+numeric-only titles or series values are rejected.
+
+For local Qwen3 setup:
+
+```bash
+sudo ./scripts/install-ollama.sh --dry-run
+sudo ./scripts/install-ollama.sh --quantization q4_k_m
+```
+
+Use Q4_K_M on constrained systems. The automatic installer selects a larger
+quantization only when available RAM supports it. Ollama failures are recorded
+on the proposal and do not grant the model filesystem access.
+
+### 10. Recovery and troubleshooting
+
+Check the active paths and database counts:
+
+```bash
+sudo -u librarian /opt/librarian/venv/bin/librarian \
+  --config /opt/librarian/config.yaml status
+```
+
+If a scan appears stuck, open the web dashboard and use **Stop scan**. A stop
+request takes effect immediately in the UI; an in-flight model request may
+finish in the background before the worker exits.
+
+If the queue contains stale failed proposals, reject them or use the confirmed
+database reset in the dashboard. Reset clears proposals, operation history,
+and metadata cache only; it never deletes incoming or library files.
 
 ## Local web UI
 
 Start the local review dashboard with:
 
 ```bash
-sudo -u borganizer BORGANIZER_CONFIG=/opt/borganizer/config.yaml \
-  /opt/borganizer/venv/bin/borganizer web
+sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
+  /opt/librarian/venv/bin/librarian web
 ```
 
 Open http://127.0.0.1:8765 in a browser. The interface is bound to localhost by default and supports reviewing, approving, rejecting, and undoing audited batches. Use `--port` to select another local port.
@@ -124,36 +346,36 @@ Open http://127.0.0.1:8765 in a browser. The interface is bound to localhost by 
 Review output labels each proposal `MOVE`, `REVIEW`, or `IGNORE`. Approve selected proposals or all proposals at or above the configured confidence threshold:
 
 ```bash
-sudo -u borganizer BORGANIZER_CONFIG=/opt/borganizer/config.yaml \
-  /opt/borganizer/venv/bin/borganizer approve 12 13
+sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
+  /opt/librarian/venv/bin/librarian approve 12 13
 
-sudo -u borganizer BORGANIZER_CONFIG=/opt/borganizer/config.yaml \
-  /opt/borganizer/venv/bin/borganizer approve-all-high-confidence
+sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
+  /opt/librarian/venv/bin/librarian approve-all-high-confidence
 ```
 
 Apply approved proposals by ID:
 
 ```bash
-sudo -u borganizer BORGANIZER_CONFIG=/opt/borganizer/config.yaml \
-  /opt/borganizer/venv/bin/borganizer apply 12 13 14
+sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
+  /opt/librarian/venv/bin/librarian apply 12 13 14
 ```
 
 Or apply all high-confidence proposals:
 
 ```bash
-sudo -u borganizer BORGANIZER_CONFIG=/opt/borganizer/config.yaml \
-  /opt/borganizer/venv/bin/borganizer apply --auto
+sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
+  /opt/librarian/venv/bin/librarian apply --auto
 ```
 
 Undo the most recent batch:
 
 ```bash
-sudo -u borganizer BORGANIZER_CONFIG=/opt/borganizer/config.yaml \
-  /opt/borganizer/venv/bin/borganizer undo
+sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
+  /opt/librarian/venv/bin/librarian undo
 
 # Or reverse a specific recorded batch:
-sudo -u borganizer BORGANIZER_CONFIG=/opt/borganizer/config.yaml \
-  /opt/borganizer/venv/bin/borganizer undo BATCH_ID
+sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
+  /opt/librarian/venv/bin/librarian undo BATCH_ID
 ```
 
 Each move is recorded before filesystem changes begin and completed only after the destination hash is verified. The audit record includes the source and destination paths, hash, proposal ID, reason, confidence, timestamps, batch ID, and operation state. Existing destinations are never overwritten; cross-filesystem moves use a temporary destination and checksum verification.
@@ -161,7 +383,7 @@ Each move is recorded before filesystem changes begin and completed only after t
 Messy audiobook components are grouped using their containing book directory or conservative track/part/CD markers. Their original component names are preserved inside the one audiobook destination. ZIP files are never extracted automatically; inspect one safely with:
 
 ```bash
-borganizer inspect Book.zip
+librarian inspect Book.zip
 ```
 
 ## Configuration
@@ -184,6 +406,10 @@ ai:
   endpoint: http://127.0.0.1:11434/api/chat
   model: qwen3:8b
   threads: 4
+
+scan:
+  extensions:
+    video: [".mkv", ".mp4", ".m4v", ".avi", ".mov", ".webm"]
 ```
 
 Keep `operation_mode: safe` until review output is understood. In `automatic` mode, only pending proposals at or above `auto_apply_threshold` are moved; everything else remains available to `review`.
@@ -197,7 +423,7 @@ ollama serve
 ollama pull qwen3:8b
 ```
 
-Enable it in the configuration above. Borganizer sends requests to Ollama on `127.0.0.1:11434` using four CPU threads and does not require an API key. The Ollama `qwen3:8b` package uses the Q4_K_M quantization requested here.
+Enable it in the configuration above. Librarian sends compact requests to Ollama on `127.0.0.1:11434` using four CPU threads and does not require an API key. Fully tagged files bypass AI; ambiguous files receive only media type, filename, embedded metadata, and a small candidate list. Thinking is disabled and output is bounded for faster local processing.
 
 ### OpenAI key
 
@@ -205,17 +431,17 @@ The key is read from the environment variable named by `ai.api_key_env`; it is n
 
 ```bash
 export OPENAI_API_KEY="your-key"
-borganizer run
+librarian run
 ```
 
 For systemd, use an environment file instead of putting the key in the configuration file:
 
 ```ini
-# /etc/borganizer/openai.env
+# /etc/librarian/openai.env
 OPENAI_API_KEY=your-key
 ```
 
-Add `EnvironmentFile=/etc/borganizer/openai.env` to `systemd/borganizer.service` and protect the file with `chmod 600`.
+Add `EnvironmentFile=/etc/librarian/openai.env` to `systemd/librarian.service` and protect the file with `chmod 600`.
 
 ## Testing
 
@@ -231,9 +457,11 @@ python3 -m pytest
 Copy the units into `/etc/systemd/system/`, review the configuration, and enable the timer when ready:
 
 ```bash
-sudo cp systemd/borganizer.service systemd/borganizer.timer /etc/systemd/system/
+sudo cp systemd/librarian.service systemd/librarian.timer /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now borganizer.timer
+sudo systemctl enable --now librarian.timer
 ```
 
-The timer invokes `borganizer run` every ten minutes. Safe mode creates proposals only; automatic mode also applies high-confidence proposals. Every operation is audited and can be reversed with `borganizer undo BATCH_ID`.
+The timer invokes `librarian run` every day at 04:00 local time. Safe mode
+creates proposals only; automatic mode also applies high-confidence proposals.
+Every operation is audited and can be reversed with `librarian undo BATCH_ID`.
