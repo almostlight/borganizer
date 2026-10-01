@@ -1,0 +1,17 @@
+[Unit]
+Description=Librarian review web UI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=librarian
+Group=librarian
+WorkingDirectory=/opt/librarian
+Environment=LIBRARIAN_CONFIG=/opt/librarian/config.yaml
+ExecStart=/opt/librarian/venv/bin/librarian web --host 0.0.0.0 --port 8765
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

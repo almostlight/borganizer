@@ -8,6 +8,7 @@ INCOMING_DIR="${LIBRARIAN_INCOMING_DIR:-/mnt/media/incoming}"
 LIBRARY_DIR="${LIBRARIAN_LIBRARY_DIR:-/mnt/media/books}"
 CONFIG_PATH="${LIBRARIAN_CONFIG:-$APP_ROOT/config.yaml}"
 WITH_OLLAMA="${LIBRARIAN_WITH_OLLAMA:-auto}"
+OPERATOR_USER="${LIBRARIAN_OPERATOR_USER:-${SUDO_USER:-}}"
 
 usage() {
     cat <<'EOF'
@@ -107,16 +108,30 @@ PY
     chmod 0640 "$CONFIG_PATH"
 }
 
+configure_operator_access() {
+    [[ -n "$OPERATOR_USER" && "$OPERATOR_USER" != root ]] || return 0
+    id "$OPERATOR_USER" >/dev/null 2>&1 || die "operator user does not exist: $OPERATOR_USER"
+    usermod --append --groups "$SERVICE_USER" "$OPERATOR_USER"
+    chgrp -R "$SERVICE_USER" "$APP_ROOT" "$STATE_ROOT" "$INCOMING_DIR" "$LIBRARY_DIR"
+    chmod -R g+rwX "$STATE_ROOT" "$INCOMING_DIR" "$LIBRARY_DIR"
+    chmod g+rx "$APP_ROOT" "$APP_ROOT/venv" "$APP_ROOT/venv/bin" "$APP_ROOT/venv/bin/librarian"
+    install -d -m 0755 /usr/local/bin
+    ln -sfn "$APP_ROOT/venv/bin/librarian" /usr/local/bin/librarian
+}
+
 install_systemd_units() {
     install -m 0644 "$SOURCE_ROOT/systemd/librarian.service" /etc/systemd/system/librarian.service
     install -m 0644 "$SOURCE_ROOT/systemd/librarian.timer" /etc/systemd/system/librarian.timer
+    install -m 0644 "$SOURCE_ROOT/systemd/librarian-web.service" /etc/systemd/system/librarian-web.service
     systemctl daemon-reload
     systemctl enable --now librarian.timer
+    systemctl enable --now librarian-web.service
 }
 
 install_packages
 create_service_user
 install_application
+configure_operator_access
 install_systemd_units
 
 printf '\nLibrarian installed.\n'

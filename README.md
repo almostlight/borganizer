@@ -59,7 +59,7 @@ The Expanse - S01E03 - Remember the Cant.mkv
 
 Jellyfin should be pointed at the resulting `Movies` and `TV Shows` folders.
 
-## Install on Debian
+## Installation
 
 The automated installer supports Debian/Ubuntu and Fedora. Run it from a
 checked-out copy of this repository as root. It creates the `librarian`
@@ -70,6 +70,33 @@ configured directories, and enables the daily systemd timer scheduled for
 ```bash
 sudo ./scripts/install.sh
 ```
+
+The installer also creates `/usr/local/bin/librarian`, adds the invoking user
+to the `librarian` group, and configures the default paths. After installation,
+start a new login session so the group membership is active. From then on, the
+normal interface is simply:
+
+```bash
+librarian status
+librarian review
+librarian run
+```
+
+The explicit `/opt/librarian/venv/bin/librarian --config ...` form remains
+useful for service-account troubleshooting, but is not required for normal
+operator use.
+
+See the complete command reference at any time:
+
+```bash
+librarian --help
+librarian review --help
+librarian --version
+```
+
+Output is colored automatically in an interactive terminal. Disable ANSI
+colors for logs or scripts with either `--no-color` or the `NO_COLOR`
+environment variable.
 
 The installer keeps `operation_mode: safe` and asks whether Ollama should be
 installed. To install the local `qwen3:8b` profile without prompting:
@@ -102,6 +129,11 @@ sudo ./scripts/install-ollama.sh --quantization q4_k_m
 sudo ./scripts/install-ollama.sh --quantization q8_0
 ```
 
+### Manual Debian installation
+
+The script above is recommended. If you need to install manually on Debian or
+Ubuntu, use:
+
 ```bash
 sudo apt update
 sudo apt install -y python3 python3-venv python3-pip ffmpeg sqlite3 git
@@ -118,6 +150,10 @@ sudo chown librarian:librarian /opt/librarian/config.yaml
 ```
 
 Adjust `incoming_dir`, `library_dir`, and `database` in `/opt/librarian/config.yaml` if necessary.
+
+For Fedora, install `python3`, `python3-pip`, `python3-devel`, `gcc`, `sqlite`,
+and `curl` with `dnf`, then use the automated installer to create the service
+account, virtual environment, permissions, and systemd units.
 
 ## First scan
 
@@ -332,7 +368,7 @@ If the queue contains stale failed proposals, reject them or use the confirmed
 database reset in the dashboard. Reset clears proposals, operation history,
 and metadata cache only; it never deletes incoming or library files.
 
-## Local web UI
+## Service-account command reference
 
 Start the local review dashboard with:
 
@@ -342,6 +378,38 @@ sudo -u librarian LIBRARIAN_CONFIG=/opt/librarian/config.yaml \
 ```
 
 Open http://127.0.0.1:8765 in a browser. The interface is bound to localhost by default and supports reviewing, approving, rejecting, and undoing audited batches. Use `--port` to select another local port.
+
+#### LAN access
+
+To make the dashboard reachable from another computer on the same network,
+bind it to all interfaces:
+
+```bash
+librarian web --host 0.0.0.0 --port 8765
+```
+
+Then open `http://LIBRARIAN_HOST_IP:8765` from the other computer. On Fedora,
+if `firewalld` is active, allow only the trusted LAN zone and port:
+
+```bash
+sudo firewall-cmd --permanent --zone=home --add-port=8765/tcp
+sudo firewall-cmd --reload
+```
+
+The web UI has no login layer, so do not expose it to the public internet. Use
+the default `127.0.0.1` bind when remote access is unnecessary. In WSL2, the
+`172.*` address belongs to the virtual WSL network; access from another LAN
+machine may require Windows port forwarding or WSL mirrored networking. The
+Librarian process must still bind to `0.0.0.0`.
+
+For a persistent installed deployment, use the bundled web service:
+
+```bash
+sudo systemctl enable --now librarian-web.service
+sudo systemctl status librarian-web.service
+```
+
+It listens on `0.0.0.0:8765` and restarts automatically if it exits.
 
 Review output labels each proposal `MOVE`, `REVIEW`, or `IGNORE`. Approve selected proposals or all proposals at or above the configured confidence threshold:
 
@@ -413,6 +481,19 @@ scan:
 ```
 
 Keep `operation_mode: safe` until review output is understood. In `automatic` mode, only pending proposals at or above `auto_apply_threshold` are moved; everything else remains available to `review`.
+
+### Paths and permissions
+
+`incoming_dir` is the only tree scanned for new media. `library_dir` is the
+destination tree inspected for matches and receives approved moves. `database`
+stores proposals, metadata cache, and the operation audit trail. The installer
+defaults to `/mnt/media/incoming`, `/mnt/media/books`, and
+`/var/lib/librarian/library.db`.
+
+The systemd service runs as the `librarian` account. If you use a path below a
+private home directory, grant only the required directory traversal/read/write
+access with ACLs. Do not solve this by making the entire home directory
+world-readable.
 
 ### Ollama
 
