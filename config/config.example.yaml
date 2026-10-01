@@ -24,7 +24,7 @@ safety:
 
 metadata:
   enabled: false
-  provider: openlibrary
+  provider: composite # Choices: openlibrary, googlebooks, itunes, composite
   cache_ttl_seconds: 2592000
 
 ai:

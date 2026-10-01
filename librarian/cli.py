@@ -229,7 +229,7 @@ def main() -> int:
     config = load_config(args.config)
     db = Database(config.database)
     provider = build_metadata_provider(config, db)
-    ai_resolver = build_ai_resolver(config)
+    ai_resolver = build_ai_resolver(config, db)
 
     if args.command == "scan":
         return cmd_scan(config, db, provider, ai_resolver)

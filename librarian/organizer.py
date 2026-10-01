@@ -267,21 +267,46 @@ def _library_book_candidates(config: Config) -> list[str]:
 
 
 def _lookup_ai(candidate: FileCandidate, resolver: AIResolver, config: Config, provider: MetadataProvider | None = None) -> None:
-    result = resolver.resolve(filename=candidate.path.name, embedded=candidate.metadata, candidate_books=_library_book_candidates(config))
+    try:
+        parent_ctx = str(candidate.path.parent.relative_to(config.incoming_dir))
+    except ValueError:
+        parent_ctx = str(candidate.path.parent)
+
+    try:
+        result = resolver.resolve(
+            filename=candidate.path.name,
+            embedded=candidate.metadata,
+            candidate_books=_library_book_candidates(config),
+            parent_path=parent_ctx,
+        )
+    except TypeError:
+        result = resolver.resolve(
+            filename=candidate.path.name,
+            embedded=candidate.metadata,
+            candidate_books=_library_book_candidates(config),
+        )
+
     if not result:
         return
     if not re.search(r"[A-Za-z]{2,}", result.book):
         raise ValueError("AI returned an implausible book title")
     if result.series and not re.search(r"[A-Za-z]{2,}", result.series):
         raise ValueError("AI returned an implausible series")
+
     if provider and candidate.metadata.media_type != "video":
         matches = provider.search(result.metadata())
-        if not any(
-            normalize_text(match.metadata.title) == normalize_text(result.book)
-            and normalize_text(match.metadata.author) == normalize_text(result.author)
-            for match in matches
-        ):
+        matched_prov = None
+        for match in matches:
+            t_score = ratio(normalize_text(match.metadata.title), normalize_text(result.book))
+            if t_score >= 70:
+                if not result.author or not match.metadata.author or ratio(normalize_text(match.metadata.author), normalize_text(result.author)) >= 60:
+                    matched_prov = match
+                    break
+        if matched_prov:
+            candidate.metadata = _merge_metadata(candidate.metadata, matched_prov.metadata)
+        else:
             raise ValueError("AI book and author were not found by metadata provider")
+
     candidate.metadata = _merge_metadata(candidate.metadata, result.metadata())
     candidate.confidence = max(candidate.confidence, result.confidence)
     candidate.notes.append(f"AI resolver: {resolver.name}")

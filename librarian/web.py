@@ -83,7 +83,7 @@ class LibrarianHandler(BaseHTTPRequestHandler):
         try:
             config = self.server.config  # type: ignore[attr-defined]
             database = self._database()
-            propose(config, database, build_metadata_provider(config, database), build_ai_resolver(config), cancel_event=self.server.scan_cancel_event, progress_callback=lambda path: self._set_scan_state("running", current_file=str(path)))  # type: ignore[attr-defined]
+            propose(config, database, build_metadata_provider(config, database), build_ai_resolver(config, database), cancel_event=self.server.scan_cancel_event, progress_callback=lambda path: self._set_scan_state("running", current_file=str(path)))  # type: ignore[attr-defined]
             if self.server.scan_cancel_event.is_set():  # type: ignore[attr-defined]
                 self._set_scan_state("stopped", "Scan stopped by user")
             else:
